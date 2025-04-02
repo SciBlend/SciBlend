@@ -85,4 +85,3 @@ If you encounter any issues:
 
 For questions, issues, or feature requests, please contact:
 - Email: info@sciblend.com
-# SciBlend
