@@ -16,11 +16,9 @@ This repository contains the complete SciBlend suite, the collection of Blender 
 - SciBlend Shapes Generator
 
 ## Directory Structure
-
 ```
 .
 ├── addons/                  # Contains all SciBlend addon packages
-├── blender-4.2.1-linux-x64/ # Portable Blender installation
 ├── install.sh              # Main installation script
 ├── setup_blender_env.sh    # Dependencies setup script
 ├── install_addons.sh       # Addons installation script
@@ -30,7 +28,6 @@ This repository contains the complete SciBlend suite, the collection of Blender 
 
 - Linux operating system
 - Python 3.11
-- Blender 4.2.1 portable (included in this package)
 
 ## Quick Installation
 
