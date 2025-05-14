@@ -1,5 +1,7 @@
 # SciBlend: Advanced Data Visualization Workflows within Blender
 
+[![DOI](https://zenodo.org/badge/959086345.svg)](https://doi.org/10.5281/zenodo.15420392)
+
 **SciBlend** is an extensible, Python-based toolkit developed to facilitate advanced scientific visualization workflows within Blender. It integrates Blender's rendering capabilities (Cycles & EEVEE) with functionalities for processing and visualizing complex computational data, aiming to bridge the gap often found between specialized data analysis tools and general-purpose 3D creation suites.
 
 > SciBlend enables researchers to produce detailed, interactive, and photorealistic visualizations from scientific datasets, supporting the exploration, interpretation, and communication of research findings.
@@ -185,7 +187,7 @@ If SciBlend or its components are used in research or publications, please inclu
 
 
 2.  **The Software Suite:**
-    > José Marín (2025). SciBlend: Advanced Scientific Data Visualization Workflows within Blender. GitHub Repository. *(https://github.com/SciBlend/SciBlend)*
+    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender. Zenodo. DOI: 10.5281/zenodo.15420392. (Source code: https://github.com/SciBlend/SciBlend)
 
 For specific functionalities of individual addons, please also refer to their respective repositories for appropriate citation if required.
 
