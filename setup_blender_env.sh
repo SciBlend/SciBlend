@@ -14,19 +14,27 @@ BLENDER_DOWNLOAD_URL="https://download.blender.org/release/Blender$BLENDER_VERSI
 
 check_venv() {
     if [[ -z "${VIRTUAL_ENV}" ]]; then
-        echo "Error: Virtual environment is not active"
+        echo "❌ Error: Virtual environment is not active"
         exit 1
     fi
 }
 
+echo "---------------------------------------"
+echo "[1/4] Checking Blender installation..."
+echo "---------------------------------------"
 if [ ! -d "$BLENDER_ROOT" ]; then
-    echo "Blender directory not found. Downloading Blender..."
-    wget -q --show-progress "$BLENDER_DOWNLOAD_URL" -O blender.tar.xz
+    echo "⬇️  Downloading Blender $BLENDER_SUBVERSION..."
+    wget --show-progress "$BLENDER_DOWNLOAD_URL" -O blender.tar.xz
     tar xf blender.tar.xz
     rm blender.tar.xz
-    echo "Blender downloaded and extracted successfully"
+    echo "✅ Blender downloaded and extracted successfully."
+else
+    echo "✅ Blender already present."
 fi
 
+echo "---------------------------------------"
+echo "[2/4] Setting up Python environment..."
+echo "---------------------------------------"
 mkdir -p "$BLENDER_SITE_PACKAGES"
 
 cat > "$BLENDER_ROOT/blender-wrapper.sh" << EOL
@@ -49,35 +57,61 @@ exec "\$BLENDER_DIR/blender" "\$@"
 EOL
 
 chmod +x "$BLENDER_ROOT/blender-wrapper.sh"
-
 ln -sf "$BLENDER_ROOT/blender-wrapper.sh" "$BLENDER_ROOT/blender-local"
 
 python$PYTHON_VERSION -m venv "$BLENDER_ROOT/$BLENDER_VERSION/python/$VENV_NAME"
 
 if ! source "$BLENDER_ROOT/$BLENDER_VERSION/python/$VENV_NAME/bin/activate"; then
-    echo "Error: Failed to activate virtual environment"
+    echo "❌ Error: Failed to activate virtual environment"
     exit 1
 fi
 
 check_venv
 
-echo "Installing Python packages..."
+echo "✅ Python environment ready."
+
+echo "---------------------------------------"
+echo "[3/4] Installing Python dependencies..."
+echo "---------------------------------------"
+echo "(This may take a few minutes)"
+echo "⬇️  Upgrading pip..."
 pip install --upgrade pip
 
+echo "⬇️  Installing vtk==9.3.0..."
 pip install vtk==9.3.0
+
+echo "⬇️  Installing netCDF4..."
 pip install netCDF4
+
+echo "⬇️  Installing numpy..."
 pip install numpy
+
+echo "⬇️  Installing scipy..."
 pip install scipy
+
+echo "⬇️  Installing matplotlib..."
 pip install matplotlib
 
+echo "⬇️  Installing geopandas..."
 pip install geopandas
+
+echo "⬇️  Installing pytz..."
 pip install pytz
+
+echo "⬇️  Installing shapely..."
 pip install shapely
+
+echo "⬇️  Installing fiona..."
 pip install fiona
 
+echo "⬇️  Installing Pillow..."
 pip install Pillow
 
-echo "Copying packages to Blender's site-packages..."
+echo "✅ Python dependencies installed."
+
+echo "---------------------------------------"
+echo "[4/4] Copying dependencies to Blender..."
+echo "---------------------------------------"
 cp -r "$BLENDER_ROOT/$BLENDER_VERSION/python/$VENV_NAME/lib/python$PYTHON_VERSION/site-packages/"* "$BLENDER_SITE_PACKAGES/"
 
 cat > "$BLENDER_PYTHON_DIR/sitecustomize.py" << EOL
@@ -106,6 +140,6 @@ fi
 deactivate
 rm -rf "$BLENDER_ROOT/$BLENDER_VERSION/python/$VENV_NAME"
 
-echo "Setup completed. Dependencies have been installed in $BLENDER_SITE_PACKAGES"
+echo "✅ Blender environment setup completed."
 echo "To use Blender with local scripts, use: $BLENDER_ROOT/blender-local"
 echo "Blender $BLENDER_VERSION is ready to use with installed dependencies"
