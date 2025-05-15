@@ -66,24 +66,12 @@ This repository contains the SciBlend suite, a collection of Blender add-ons. Ea
 
 ---
 
-## 🗂️ Repository Structure
-
-```
-.
-├── addons/                  # Bundled SciBlend addon packages (zipped)
-├── install.sh               # Main installation script for the SciBlend Suite
-├── setup_blender_env.sh     # Script for Blender & Python dependency setup
-├── install_addons.sh        # Script for installing the bundled addons
-```
-
----
-
 ## 🗂️ Package Contents
 
-The SciBlend project is distributed primarily as two packages, typically found on Zenodo or GitHub Releases:
+The SciBlend project is distributed primarily as one package, found in Zenodo ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)):
 
-1.  **SciBlend Suite Package** (e.g., `SciBlend-Suite-vX.Y.Z.zip` or `SciBlend/SciBlend-v.1.0.0.zip` as named on Zenodo)
-    This is the main package containing the installation scripts and the SciBlend addons. Its structure upon extraction (from the internal `SciBlend-SciBlend-xxxxxx` folder or the repository root) is:
+1.  **SciBlend Suite Package** (`SciBlend/SciBlend-v.1.0.0.zip` as named on Zenodo)
+    This is the main package containing the installation scripts and the SciBlend addons. Its structure upon extraction is:
     ```
     .
     ├── addons/                  # Bundled SciBlend addon .zip files
@@ -93,7 +81,7 @@ The SciBlend project is distributed primarily as two packages, typically found o
     ├── README.md                # This documentation file
     ```
 
-2.  **Pre-configured Blender for Linux** (e.g., `SciBlend_Linux_v1.0.0.zip`)
+2.  **Pre-configured Blender for Linux** (`SciBlend_Linux_v1.0.0.zip`)
     This is a separate archive (approx. 760MB) containing Blender 4.2 for Linux with Python scientific dependencies (VTK, NumPy, etc.) pre-installed. 
     *   It is primarily intended for "Option 2: Manual Setup".
     *   This package **does not** include the SciBlend addons themselves; they must be installed from the SciBlend Suite Package.
