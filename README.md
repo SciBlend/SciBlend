@@ -260,7 +260,7 @@ If SciBlend or its components are used in research or publications, please inclu
 
 
 2.  **The Software Suite:**
-    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender. Zenodo. DOI: 10.5281/zenodo.15420392. (Source code: https://github.com/SciBlend/SciBlend)
+    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender - Software. Zenodo. DOI: 10.5281/zenodo.15420392. (Source code: https://github.com/SciBlend/SciBlend)
 
 For specific functionalities of individual addons, please also refer to their respective repositories for appropriate citation if required.
 
