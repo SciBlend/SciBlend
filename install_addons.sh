@@ -65,7 +65,7 @@ if __name__ == "__main__":
     main()
 EOL
 
-"$BLENDER_EXECUTABLE" -b -P "$TEMP_DIR/install_addons.py" -- "$TEMP_DIR" > /dev/null 2>&1
+"$BLENDER_EXECUTABLE" -b -P "$TEMP_DIR/install_addons.py" -- "$TEMP_DIR" 2>/dev/null
 
 echo "---------------------------------------"
 echo "✅ All Blender addons installed successfully."

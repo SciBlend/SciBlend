@@ -15,7 +15,7 @@ chmod +x install_addons.sh
 ./setup_blender_env.sh
 
 echo "[2/3] Installing Blender addons..."
-./install_addons.sh
+./install_addons.sh > /dev/null 2>&1
 
 echo "[3/3] Creating Blender launcher..."
 cat > blender-sciblend << 'EOL'
