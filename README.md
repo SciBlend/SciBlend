@@ -1,6 +1,6 @@
 # SciBlend: Advanced Data Visualization Workflows within Blender
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15421327.svg)](https://doi.org/10.5281/zenodo.15421327)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15420392.svg)](https://doi.org/10.5281/zenodo.15420392)
 
 
 **SciBlend** is an extensible, Python-based toolkit developed to facilitate advanced scientific visualization workflows within Blender. It integrates Blender's rendering capabilities (Cycles & EEVEE) with functionalities for processing and visualizing complex computational data, aiming to bridge the gap often found between specialized data analysis tools and general-purpose 3D creation suites.
@@ -69,7 +69,7 @@ This repository contains the SciBlend suite, a collection of Blender add-ons. Ea
 
 ## 🗂️ Package Contents
 
-The SciBlend project is distributed primarily as two packages, found in Zenodo ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15421327)):
+The SciBlend project is distributed primarily as two packages, found in Zenodo ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)):
 
 1.  **SciBlend Suite Package** (`SciBlend/SciBlend-v.1.0.0.zip` as named on Zenodo)
     This is the main package containing the installation scripts and the SciBlend addons. Its structure upon extraction is:
@@ -136,7 +136,7 @@ This script will perform the following actions:
 This option provides a Blender 4.2 LTS environment for Linux with Python and its scientific dependencies (VTK, netCDF4, NumPy, SciPy, Matplotlib, GeoPandas, etc.) already set up. **This package does NOT include the SciBlend addons pre-installed.** You will need to install the SciBlend addons manually.
 
 1.  **Download Pre-configured Blender (Linux):**
-    *   A pre-configured Blender environment named `SciBlend_Linux_v1.0.0.zip` (or similar, check the version) is available on **Zenodo**. Look for it in the files section of the Zenodo record associated with this release ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15421327)).
+    *   A pre-configured Blender environment named `SciBlend_Linux_v1.0.0.zip` (or similar, check the version) is available on **Zenodo**. Look for it in the files section of the Zenodo record associated with this release ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)).
 2.  **Extract Blender:** Unzip `SciBlend_Linux_v1.0.0.zip` to your desired location. This folder contains a ready-to-run Blender instance.
 3.  **Download the SciBlend Addons:** If you haven't already, download the `SciBlend/SciBlend-v.1.0.0.zip` from [GitHub Releases](https://github.com/SciBlend/SciBlend/releases) or Zenodo. This contains the `addons/` directory. Extract it.
 4.  **Install SciBlend Addons Manually in Blender:**
@@ -260,7 +260,7 @@ If SciBlend or its components are used in research or publications, please inclu
 
 
 2.  **The Software Suite:**
-    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender. Zenodo. DOI: 10.5281/zenodo.15421327. (Source code: https://github.com/SciBlend/SciBlend)
+    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender. Zenodo. DOI: 10.5281/zenodo.15420392. (Source code: https://github.com/SciBlend/SciBlend)
 
 For specific functionalities of individual addons, please also refer to their respective repositories for appropriate citation if required.
 
