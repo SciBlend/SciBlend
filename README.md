@@ -68,7 +68,7 @@ This repository contains the SciBlend suite, a collection of Blender add-ons. Ea
 
 ## 🗂️ Package Contents
 
-The SciBlend project is distributed primarily as one package, found in Zenodo ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)):
+The SciBlend project is distributed primarily as two packages, found in Zenodo ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)):
 
 1.  **SciBlend Suite Package** (`SciBlend/SciBlend-v.1.0.0.zip` as named on Zenodo)
     This is the main package containing the installation scripts and the SciBlend addons. Its structure upon extraction is:
