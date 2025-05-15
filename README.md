@@ -78,6 +78,28 @@ This repository contains the SciBlend suite, a collection of Blender add-ons. Ea
 
 ---
 
+## 🗂️ Package Contents
+
+The SciBlend project is distributed primarily as two packages, typically found on Zenodo or GitHub Releases:
+
+1.  **SciBlend Suite Package** (e.g., `SciBlend-Suite-vX.Y.Z.zip` or `SciBlend/SciBlend-v.1.0.0.zip` as named on Zenodo)
+    This is the main package containing the installation scripts and the SciBlend addons. Its structure upon extraction (from the internal `SciBlend-SciBlend-xxxxxx` folder or the repository root) is:
+    ```
+    .
+    ├── addons/                  # Bundled SciBlend addon .zip files
+    ├── install.sh               # Main installation script
+    ├── setup_blender_env.sh     # Sets up Blender & Python environment
+    ├── install_addons.sh        # Installs the bundled addons
+    ├── README.md                # This documentation file
+    ```
+
+2.  **Pre-configured Blender for Linux** (e.g., `SciBlend_Linux_v1.0.0.zip`)
+    This is a separate archive (approx. 760MB) containing Blender 4.2 for Linux with Python scientific dependencies (VTK, NumPy, etc.) pre-installed. 
+    *   It is primarily intended for "Option 2: Manual Setup".
+    *   This package **does not** include the SciBlend addons themselves; they must be installed from the SciBlend Suite Package.
+
+---
+
 ## 🖥️ System Requirements
 
 -   Linux operating system
@@ -87,24 +109,58 @@ This repository contains the SciBlend suite, a collection of Blender add-ons. Ea
 
 ---
 
-## ⚡ Installation
+## ⚡ Installation Options
 
-1.  Clone or download this repository.
-2.  Navigate to the repository directory in a terminal.
-3.  Make the installer executable:
+You have two primary ways to set up SciBlend:
+
+### Option 1: Using the Automated Installation Script (Recommended)
+
+This method uses the `install.sh` script to prepare your Blender environment, install Python dependencies, and attempt to install all SciBlend addons automatically.
+
+1.  **Download the SciBlend Suite:** Obtain the `SciBlend-Suite-vX.Y.Z.zip` (e.g., `SciBlend-Suite-v1.0.0.zip`) from the [GitHub Releases](https://github.com/SciBlend/SciBlend/releases) or the Zenodo archive. This ZIP contains the installation scripts and the `addons/` directory with all SciBlend addon .zip files.
+2.  **Extract the Archive:** Unzip the downloaded file.
+3.  **Navigate to the Directory:** Open a terminal in the extracted `SciBlend-Suite-vX.Y.Z` directory.
+4.  **Make the Installer Executable:**
     ```bash
     chmod +x install.sh
     ```
-4.  Execute the installer:
+5.  **Run the Installer:**
     ```bash
     ./install.sh
     ```
+    
+This script will perform the following actions:
+1.  Attempt to download Blender 4.2 LTS if not detected locally.
+2.  Configure a Python environment with required dependencies (VTK, netCDF4, etc.) within Blender.
+3.  Install all SciBlend addons from the `addons/` directory.
+4.  Create a `./blender-sciblend` launch script.
 
-The script performs the following actions:
--   Attempts to download Blender 4.2 LTS if not detected locally.
--   Configures a Python environment with required dependencies.
--   Installs all SciBlend addons.
--   Creates a `./blender-sciblend` launch script.
+**Note on Addon Activation:** If, after running the script, some SciBlend addons do not appear in Blender's sidebar or UI panels, you may need to enable them or install them manually:
+1.  Open Blender (using `./blender-sciblend`).
+2.  Go to `Edit > Preferences > Add-ons`.
+3.  Search for the SciBlend addons (e.g., "SciBlend Core", "SciBlend Advanced Core").
+4.  If listed but unchecked, check the box to enable them.
+5.  If an addon is missing entirely, click "Install...", navigate to the `addons/` directory (from the SciBlend Suite ZIP you downloaded), and select the respective addon's `.zip` file (e.g., `SciBlend_Core.zip`). Repeat for each missing addon.
+
+### Option 2: Manual Setup with Pre-configured Blender Dependencies
+
+This option provides a Blender 4.2 LTS environment for Linux with Python and its scientific dependencies (VTK, netCDF4, NumPy, SciPy, Matplotlib, GeoPandas, etc.) already set up. **This package does NOT include the SciBlend addons pre-installed.** You will need to install the SciBlend addons manually.
+
+1.  **Download Pre-configured Blender (Linux):**
+    *   A pre-configured Blender environment named `SciBlend_Linux_v1.0.0.zip` (or similar, check the version) is available on **Zenodo**. Look for it in the files section of the Zenodo record associated with this release ([DOI: 10.5281/zenodo.15420392](https://doi.org/10.5281/zenodo.15420392)).
+2.  **Extract Blender:** Unzip `SciBlend_Linux_v1.0.0.zip` to your desired location. This folder contains a ready-to-run Blender instance.
+3.  **Download the SciBlend Addons:** If you haven't already, download the `SciBlend/SciBlend-v.1.0.0.zip` from [GitHub Releases](https://github.com/SciBlend/SciBlend/releases) or Zenodo. This contains the `addons/` directory. Extract it.
+4.  **Install SciBlend Addons Manually in Blender:**
+    *   Run the Blender executable from the folder you extracted in step 2.
+    *   Go to `Edit > Preferences > Add-ons`.
+    *   Click the "Install..." button.
+    *   Navigate to the `addons/` directory (from the `SciBlend-v.1.0.0/addons`)
+    *   Select the `.zip` file for the first SciBlend addon you want to install (e.g., `SciBlend_AdvancedCore.zip`).
+    *   Click "Install Add-on".
+    *   Once installed, search for the addon and check the box next to its name to enable it.
+    *   **Repeat this process (Install... and Enable) for each SciBlend addon** you wish to use from the `addons/` directory (e.g., `SciBlend_AdvancedCore.zip`, `SciBlend_ShaderGenerator.zip`, etc.).
+
+This method is suitable for Linux users who prefer to manage Blender installations manually or have issues with the automated script, and understand they need to install each SciBlend addon individually.
 
 ---
 
@@ -114,6 +170,37 @@ Post-installation, launch Blender with the SciBlend suite using:
 ```bash
 ./blender-sciblend
 ```
+
+---
+
+## 📚 Tutorials (In Development)
+
+Get started with SciBlend by following our video tutorials. These guides cover everything from installation to advanced features. Please note that these tutorials are currently under development.
+
+**Accessing the SciBlend Tutorial Videos (Hosted on Vimeo):**
+
+1.  **Tutorial 1: Installation** --- Duration: 5:27  
+    [Watch Video](https://vimeo.com/1072114774/6710c26719)
+2.  **Tutorial 2: Blender Basics** --- Duration: 3:38  
+    [Watch Video](https://vimeo.com/1072322575/5f76df6d54)
+3.  **Tutorial 3: Paraview Macros** --- Duration: 4:12  
+    [Watch Video](https://vimeo.com/1072343076/bcd85df516)
+4.  **Tutorial 4: Disclaimer** --- Duration: 0:50  
+    [Watch Video](https://vimeo.com/1072530634/4d23fbf807)
+5.  **Tutorial 5: Advanced Core** --- Duration: 9:38  
+    [Watch Video](https://vimeo.com/1072467895/4b891cdc36)
+6.  **Tutorial 6: Shader Generator** --- Duration: 2:49  
+    [Watch Video](https://vimeo.com/1072516398/ba57a7f44b)
+7.  **Tutorial 7: Compositor and Rendering** --- Duration: 9:14  
+    [Watch Video](https://vimeo.com/1072530634/4d23fbf807)
+
+**Total Course Duration:** Approximately 35 minutes and 48 seconds.
+
+**Accessing Tutorial Datasets:**
+
+The primary "Hearts Dataset" (preprocessed for tutorial use) are not publicly hosted for direct download. Access to these materials for tutorial purposes may be requested by contacting the project maintainers:
+
+Requests for access to other datasets mentioned in tutorials or associated research (e.g., Atrial, DualSPHysics datasets) should be directed to the support team at `info@sciblend.com`.
 
 ---
 
@@ -133,8 +220,6 @@ The installation script manages the installation of the following Python package
 -   Pillow
 
 ---
-
-
 
 ## 🤝 Contributions
 
@@ -176,7 +261,6 @@ For the latest versions, features, and detailed documentation of each addon, ple
 -   [SciBlend Notes Generator](https://github.com/josemarinfarina/SciBlend-NotesGenerator)
 
 ---
-
 
 ## 📜 Citing SciBlend
 
