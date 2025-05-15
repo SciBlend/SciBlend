@@ -186,7 +186,7 @@ Get started with SciBlend by following our video tutorials. These guides cover e
 3.  **Tutorial 3: Paraview Macros** --- Duration: 4:12  
     [Watch Video](https://vimeo.com/1072343076/bcd85df516)
 4.  **Tutorial 4: Disclaimer** --- Duration: 0:50  
-    [Watch Video](https://vimeo.com/1072530634/4d23fbf807)
+    [Watch Video](https://vimeo.com/1072534713/d5745037c5)
 5.  **Tutorial 5: Advanced Core** --- Duration: 9:38  
     [Watch Video](https://vimeo.com/1072467895/4b891cdc36)
 6.  **Tutorial 6: Shader Generator** --- Duration: 2:49  
