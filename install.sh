@@ -18,15 +18,15 @@ echo "[2/3] Installing Blender addons..."
 ./install_addons.sh
 
 echo "[3/3] Creating Blender launcher..."
-cat > blender-sciblend << EOL
+cat > blender-sciblend << 'EOL'
 #!/bin/bash
-DIR="\$(dirname "\$(readlink -f "$0")")"
-"$DIR/blender-4.2.1-linux-x64/blender" "$@"
+DIR="$(dirname "$(readlink -f "$0")")"
+"$DIR/blender-4.2.1-linux-x64/blender-local" "$@"
 EOL
 
 chmod +x blender-sciblend
 
-echo "\n====================================="
+echo "\n================    ====================="
 echo "✅ All steps completed successfully!"
 echo "You can run Blender with SciBlend using: ./blender-sciblend"
 echo "====================================="
