@@ -1,6 +1,7 @@
 # SciBlend: Advanced Data Visualization Workflows within Blender
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15420392.svg)](https://doi.org/10.5281/zenodo.15420392)
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.cag.2025.104264-blue.svg)](https://doi.org/10.1016/j.cag.2025.104264) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15420392.svg)](https://doi.org/10.5281/zenodo.15420392)
+
 
 
 **SciBlend** is an extensible, Python-based toolkit developed to facilitate advanced scientific visualization workflows within Blender. It integrates Blender's rendering capabilities (Cycles & EEVEE) with functionalities for processing and visualizing complex computational data, aiming to bridge the gap often found between specialized data analysis tools and general-purpose 3D creation suites.
@@ -257,10 +258,35 @@ If SciBlend or its components are used in research or publications, please inclu
 
 1.  **The SciBlend Paper:**
 
+```
+@article{marin2025,
+title = {SciBlend: Advanced data visualization workflows within Blender},
+journal = {Computers & Graphics},
+pages = {104264},
+year = {2025},
+issn = {0097-8493},
+doi = {https://doi.org/10.1016/j.cag.2025.104264},
+url = {https://www.sciencedirect.com/science/article/pii/S0097849325001050},
+author = {José Marín and Tiffany M.G. Baptiste and Cristobal Rodero and Steven E. Williams and Steven A. Niederer and Ignacio García-Fernández},
+keywords = {Scientific visualisation, Blender, Paraview, Data rendering, Visual storytelling, Scientific communication}
+}
+```
+
+3.  **The Software Suite:**
+```
+@software{sciblend2025,
+doi = {10.5281/ZENODO.15420392},
+url = {https://zenodo.org/doi/10.5281/zenodo.15420392},
+author = {José Marín},
+title = {SciBlend: Advanced Data Visualization Workflows within Blender - Software},
+publisher = {Zenodo},
+year = {2025},
+copyright = {Creative Commons Attribution 4.0 International}
+}
+```
 
 
-2.  **The Software Suite:**
-    > José Marín (2025). SciBlend: Advanced Data Visualization Workflows within Blender - Software. Zenodo. DOI: 10.5281/zenodo.15420392. (Source code: https://github.com/SciBlend/SciBlend)
+(Source code: https://github.com/SciBlend/SciBlend)
 
 For specific functionalities of individual addons, please also refer to their respective repositories for appropriate citation if required.
 
