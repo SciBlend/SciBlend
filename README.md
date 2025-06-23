@@ -262,6 +262,7 @@ If SciBlend or its components are used in research or publications, please inclu
 @article{marin2025,
 title = {SciBlend: Advanced data visualization workflows within Blender},
 journal = {Computers & Graphics},
+volume = {130},
 pages = {104264},
 year = {2025},
 issn = {0097-8493},
