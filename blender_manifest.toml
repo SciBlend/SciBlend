@@ -1,0 +1,80 @@
+schema_version = "1.0.0"
+id = "sciblend_advanced_core"
+version = "1.1.0"
+name = "SciBlend"
+tagline = "Scientific visualization tools for Blender"
+type = "add-on"
+maintainer = "José Marín"
+blender_version_min = "4.5.1"
+license = ["GPL-3.0-or-later"]
+description = """
+v.4.0.0
+
+This addon enhances Blender's capabilities with specialized tools for importing and managing scientific data formats. Key features include:
+
+- Import and visualization of VTK, VTU, PVTU files
+- Import and visualization of NetCDF files with support for:
+  * Time-series data
+  * Spherical projections for global/planetary data
+  * Automatic attribute handling
+- Import and visualization of Shapefiles (.shp) with:
+  * DBF attribute support
+  * Automatic extrusion options
+  * Scale control
+  * Delaunay triangulation for terrain modeling
+  * Advanced point cloud processing
+- Import and management of X3D files and scenes
+- Group objects by type (cameras, lights, meshes)
+- Quick scene setup with predefined lighting and render settings
+- Streamlined UI panel for easy access to all functions
+"""
+
+platforms = ["windows-x64", "macos-x64", "macos-arm64", "linux-x64"]
+
+# Wheels
+wheels = [
+  "./wheels/attrs-25.3.0-py3-none-any.whl",
+  "./wheels/certifi-2025.8.3-py3-none-any.whl",
+  "./wheels/cftime-1.6.4.post1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/cftime-1.6.4.post1-cp311-cp311-win_amd64.whl",
+  "./wheels/click-8.2.1-py3-none-any.whl",
+  "./wheels/click_plugins-1.1.1.2-py2.py3-none-any.whl",
+  "./wheels/cligj-0.7.2-py3-none-any.whl",
+  "./wheels/contourpy-1.3.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/contourpy-1.3.3-cp311-cp311-win_amd64.whl",
+  "./wheels/cycler-0.12.1-py3-none-any.whl",
+  "./wheels/fiona-1.9.6-cp311-cp311-manylinux2014_x86_64.whl",
+  "./wheels/fiona-1.9.6-cp311-cp311-win_amd64.whl",
+  "./wheels/fonttools-4.59.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+  "./wheels/fonttools-4.59.1-cp311-cp311-win_amd64.whl",
+  "./wheels/geopandas-1.0.1-py3-none-any.whl",
+  "./wheels/importlib_metadata-8.7.0-py3-none-any.whl",
+  "./wheels/kiwisolver-1.4.9-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+  "./wheels/kiwisolver-1.4.9-cp311-cp311-win_amd64.whl",
+  "./wheels/matplotlib-3.10.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+  "./wheels/matplotlib-3.10.5-cp311-cp311-win_amd64.whl",
+  "./wheels/netCDF4-1.7.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/netCDF4-1.7.2-cp311-cp311-win_amd64.whl",
+  "./wheels/numpy-1.26.4-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/numpy-1.26.4-cp311-cp311-win_amd64.whl",
+  "./wheels/packaging-25.0-py3-none-any.whl",
+  "./wheels/pandas-2.2.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/pandas-2.2.3-cp311-cp311-win_amd64.whl",
+  "./wheels/pillow-11.3.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+  "./wheels/pillow-11.3.0-cp311-cp311-win_amd64.whl",
+  "./wheels/pyogrio-0.11.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/pyogrio-0.11.1-cp311-cp311-win_amd64.whl",
+  "./wheels/pyparsing-3.2.3-py3-none-any.whl",
+  "./wheels/pyproj-3.6.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/pyproj-3.6.1-cp311-cp311-win_amd64.whl",
+  "./wheels/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+  "./wheels/pytz-2025.2-py2.py3-none-any.whl",
+  "./wheels/shapely-2.0.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/shapely-2.0.6-cp311-cp311-win_amd64.whl",
+  "./wheels/six-1.17.0-py2.py3-none-any.whl",
+  "./wheels/typing_extensions-4.14.1-py3-none-any.whl",
+  "./wheels/tzdata-2025.2-py2.py3-none-any.whl",
+  "./wheels/vtk-9.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+  "./wheels/vtk-9.3.0-cp311-cp311-win_amd64.whl",
+  "./wheels/zipp-3.23.0-py3-none-any.whl",
+]

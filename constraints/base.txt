@@ -1,0 +1,11 @@
+numpy==1.26.4
+vtk==9.3.0
+netCDF4==1.7.2
+pandas==2.2.3
+shapely==2.0.6
+pyproj==3.6.1
+geopandas==1.0.1
+fiona==1.9.6
+matplotlib==3.8.4
+pillow==10.4.0
+scipy==1.11.4

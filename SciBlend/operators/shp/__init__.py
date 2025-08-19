@@ -1,0 +1,1 @@
+"""Shapefile import operators package.""" 
