@@ -31,25 +31,40 @@ ALLOW_DIRS = {
 def collect_wheels(target: str) -> List[Path]:
 	"""Select wheel files for a given target platform.
 
-	This includes platform-tagged wheels matching the platform tags for
-	`target`, and universal wheels ending with "-none-any.whl" (covers both
-	"-py3-none-any.whl" and "-py2.py3-none-any.whl").
+	Includes universal wheels from ``wheels/common`` (``*-none-any.whl``) and
+	platform-specific wheels from ``wheels/<target>``. NumPy wheels are excluded
+	as Blender bundles NumPy.
 
 	Args:
 		target: Platform key from PLATFORM_TAGS.
 
 	Returns:
-		List of wheel file paths selected from the local `wheels/` directory.
+		List of wheel file paths selected from the local ``wheels/`` directory.
 	"""
-	wheel_dir = ROOT / "wheels"
-	if not wheel_dir.is_dir():
+	wheel_root = ROOT / "wheels"
+	if not wheel_root.is_dir():
 		raise SystemExit("wheels/ folder not found")
-	tags = PLATFORM_TAGS[target]
+
 	selected: List[Path] = []
-	for fn in wheel_dir.glob("*.whl"):
-		name = fn.name
-		if any(tag in name for tag in tags) or name.endswith("-none-any.whl"):
-			selected.append(fn)
+	common_dir = wheel_root / "common"
+	plat_dir = wheel_root / target
+
+	if common_dir.is_dir():
+		for fn in common_dir.glob("*.whl"):
+			name = fn.name
+			if name.startswith("numpy-"):
+				continue
+			if name.endswith("-none-any.whl"):
+				selected.append(fn)
+
+	if plat_dir.is_dir():
+		for fn in plat_dir.glob("*.whl"):
+			name = fn.name
+			if name.startswith("numpy-"):
+				continue
+			if not name.endswith("-none-any.whl"):
+				selected.append(fn)
+
 	return selected
 
 
@@ -82,7 +97,7 @@ def copy_minimal_payload(dst: Path) -> None:
 
 
 def rewrite_manifest_wheels(tmp_root: Path, selected: List[Path]) -> None:
-	"""Rewrite wheels section in the manifest to match `selected` wheels.
+	"""Rewrite wheels section in the manifest to match ``selected`` wheels.
 
 	If a wheels block is present, it is replaced. If not present, a new block
 	is appended at the end of the file.
@@ -119,6 +134,23 @@ def rewrite_manifest_wheels(tmp_root: Path, selected: List[Path]) -> None:
 	manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def rewrite_manifest_platforms(tmp_root: Path, target: str) -> None:
+	"""Replace ``platforms`` list with the single ``target`` in staged manifest."""
+	manifest = tmp_root / "blender_manifest.toml"
+	if not manifest.exists():
+		return
+	lines = manifest.read_text(encoding="utf-8").splitlines()
+	rewrote = False
+	for i, line in enumerate(lines):
+		if line.strip().startswith("platforms"):
+			lines[i] = f'platforms = ["{target}"]'
+			rewrote = True
+			break
+	if not rewrote:
+		lines.append(f'platforms = ["{target}"]')
+	manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def make_zip(target: str, outdir: Path) -> Path:
 	"""Create a platform-specific extension zip archive.
 
@@ -143,6 +175,7 @@ def make_zip(target: str, outdir: Path) -> Path:
 		for wf in selected:
 			shutil.copy2(wf, wheels_dst / wf.name)
 
+		rewrite_manifest_platforms(tmp, target)
 		rewrite_manifest_wheels(tmp, selected)
 
 		shutil.make_archive(str(zip_path.with_suffix("")), 'zip', root_dir=tmp)
