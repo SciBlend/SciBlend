@@ -29,6 +29,18 @@ ALLOW_DIRS = {
 
 
 def collect_wheels(target: str) -> List[Path]:
+	"""Select wheel files for a given target platform.
+
+	This includes platform-tagged wheels matching the platform tags for
+	`target`, and universal wheels ending with "-none-any.whl" (covers both
+	"-py3-none-any.whl" and "-py2.py3-none-any.whl").
+
+	Args:
+		target: Platform key from PLATFORM_TAGS.
+
+	Returns:
+		List of wheel file paths selected from the local `wheels/` directory.
+	"""
 	wheel_dir = ROOT / "wheels"
 	if not wheel_dir.is_dir():
 		raise SystemExit("wheels/ folder not found")
@@ -36,13 +48,17 @@ def collect_wheels(target: str) -> List[Path]:
 	selected: List[Path] = []
 	for fn in wheel_dir.glob("*.whl"):
 		name = fn.name
-		if any(tag in name for tag in tags) or name.endswith("-py3-none-any.whl"):
+		if any(tag in name for tag in tags) or name.endswith("-none-any.whl"):
 			selected.append(fn)
 	return selected
 
 
 def copy_minimal_payload(dst: Path) -> None:
-	"""Copy only the add-on minimal payload into dst."""
+	"""Copy only the add-on minimal payload into `dst`.
+
+	Creates missing directories and copies allowlisted files and directories
+	from the repository root into the temporary packaging location.
+	"""
 	dst.mkdir(parents=True, exist_ok=True)
 
 
@@ -66,6 +82,11 @@ def copy_minimal_payload(dst: Path) -> None:
 
 
 def rewrite_manifest_wheels(tmp_root: Path, selected: List[Path]) -> None:
+	"""Rewrite wheels section in the manifest to match `selected` wheels.
+
+	If a wheels block is present, it is replaced. If not present, a new block
+	is appended at the end of the file.
+	"""
 	manifest = tmp_root / "blender_manifest.toml"
 	if not manifest.exists():
 		return
@@ -99,6 +120,15 @@ def rewrite_manifest_wheels(tmp_root: Path, selected: List[Path]) -> None:
 
 
 def make_zip(target: str, outdir: Path) -> Path:
+	"""Create a platform-specific extension zip archive.
+
+	Args:
+		target: Platform identifier (one of PLATFORM_TAGS keys).
+		outdir: Output directory where the zip file will be written.
+
+	Returns:
+		The path to the created zip archive.
+	"""
 	outdir.mkdir(parents=True, exist_ok=True)
 	name = f"sciblend-1.1.0-{target}.zip"
 	zip_path = outdir / name
@@ -120,6 +150,7 @@ def make_zip(target: str, outdir: Path) -> Path:
 
 
 def main() -> int:
+	"""CLI entry point to build a platform-targeted SciBlend zip."""
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--target', required=True, choices=list(PLATFORM_TAGS.keys()))
 	parser.add_argument('--outdir', default='dist')
