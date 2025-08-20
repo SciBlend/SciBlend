@@ -162,7 +162,7 @@ def make_zip(target: str, outdir: Path) -> Path:
 		The path to the created zip archive.
 	"""
 	outdir.mkdir(parents=True, exist_ok=True)
-	name = f"sciblend-1.1.0-{target}.zip"
+	name = f"sciblend-1.1.1-{target}.zip"
 	zip_path = outdir / name
 	with tempfile.TemporaryDirectory() as td:
 		tmp = Path(td)
