@@ -6,7 +6,7 @@ tagline = "Scientific visualization tools for Blender"
 type = "add-on"
 maintainer = "José Marín"
 blender_version_min = "4.5.1"
-license = ["GPL-3.0-or-later"]
+license = ["SPDX:GPL-3.0-or-later"]
 description = """
 v.4.0.0
 
