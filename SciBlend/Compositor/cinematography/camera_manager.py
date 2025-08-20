@@ -37,7 +37,7 @@ class CAMERA_OT_add(Operator):
         new_camera = context.active_object
         new_camera.camera_range.start_frame = context.scene.frame_start
         new_camera.camera_range.end_frame = context.scene.frame_end
-        item = context.scene.camera_list.add()
+        item = context.scene.cinematography_settings.camera_list.add()
         item.name = new_camera.name
         
         context.scene.camera = new_camera
@@ -56,19 +56,20 @@ class CAMERA_OT_remove(Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.scene.camera_list_index >= 0 and len(context.scene.camera_list) > 0
+        cset = context.scene.cinematography_settings
+        return cset.camera_list_index >= 0 and len(cset.camera_list) > 0
 
     def execute(self, context):
-        scene = context.scene
-        index = scene.camera_list_index
-        camera_name = scene.camera_list[index].name
+        cset = context.scene.cinematography_settings
+        index = cset.camera_list_index
+        camera_name = cset.camera_list[index].name
         camera_obj = bpy.data.objects.get(camera_name)
         
         if camera_obj:
             bpy.data.objects.remove(camera_obj, do_unlink=True)
         
-        scene.camera_list.remove(index)
-        scene.camera_list_index = min(max(0, index - 1), len(scene.camera_list) - 1)
+        cset.camera_list.remove(index)
+        cset.camera_list_index = min(max(0, index - 1), len(cset.camera_list) - 1)
         return {'FINISHED'}
 
 class CAMERA_OT_move(Operator):
@@ -86,14 +87,14 @@ class CAMERA_OT_move(Operator):
 
     @classmethod
     def poll(cls, context):
-        return len(context.scene.camera_list) > 1
+        return len(context.scene.cinematography_settings.camera_list) > 1
 
     def execute(self, context):
-        scene = context.scene
-        index = scene.camera_list_index
+        cset = context.scene.cinematography_settings
+        index = cset.camera_list_index
         neighbor = index + (-1 if self.direction == 'UP' else 1)
-        scene.camera_list.move(neighbor, index)
-        scene.camera_list_index = neighbor
+        cset.camera_list.move(neighbor, index)
+        cset.camera_list_index = neighbor
         return {'FINISHED'}
 
 class CAMERA_OT_sort(Operator):
@@ -103,12 +104,12 @@ class CAMERA_OT_sort(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        scene = context.scene
-        camera_list = [(item.name, bpy.data.objects[item.name].camera_range.start_frame) for item in scene.camera_list]
+        cset = context.scene.cinematography_settings
+        camera_list = [(item.name, bpy.data.objects[item.name].camera_range.start_frame) for item in cset.camera_list]
         sorted_list = sorted(camera_list, key=lambda x: x[1])
-        scene.camera_list.clear()
+        cset.camera_list.clear()
         for name, _ in sorted_list:
-            scene.camera_list.add().name = name
+            cset.camera_list.add().name = name
         return {'FINISHED'}
 
 class CAMERA_OT_update_timeline(Operator):
@@ -158,12 +159,13 @@ class CAMERA_OT_erase_all_keyframes(Operator):
 
         self.report({'INFO'}, f"Processed {camera_count} cameras")
         
-        scene.camera_list.clear()
+        cset = scene.cinematography_settings
+        cset.camera_list.clear()
         for obj in scene.objects:
             if obj.type == 'CAMERA':
-                item = scene.camera_list.add()
+                item = cset.camera_list.add()
                 item.name = obj.name
-        scene.camera_list_index = 0 if len(scene.camera_list) > 0 else -1
+        cset.camera_list_index = 0 if len(cset.camera_list) > 0 else -1
         
         for area in context.screen.areas:
             area.tag_redraw()
@@ -178,9 +180,9 @@ class CAMERA_OT_view_selected(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        scene = context.scene
-        if scene.camera_list and scene.camera_list_index >= 0:
-            camera_item = scene.camera_list[scene.camera_list_index]
+        cset = context.scene.cinematography_settings
+        if cset.camera_list and cset.camera_list_index >= 0:
+            camera_item = cset.camera_list[cset.camera_list_index]
             camera_obj = bpy.data.objects.get(camera_item.name)
             if camera_obj and camera_obj.type == 'CAMERA':
                 context.scene.camera = camera_obj
@@ -210,8 +212,9 @@ def update_camera_markers(camera, scene):
             marker.camera = camera
 
 def update_camera_list_index(self, context):
-    if context.scene.camera_list and context.scene.camera_list_index >= 0:
-        camera_item = context.scene.camera_list[context.scene.camera_list_index]
+    cset = context.scene.cinematography_settings
+    if cset.camera_list and cset.camera_list_index >= 0:
+        camera_item = cset.camera_list[cset.camera_list_index]
         camera_obj = bpy.data.objects.get(camera_item.name)
         if camera_obj and camera_obj.type == 'CAMERA':
             context.scene.camera = camera_obj
@@ -237,15 +240,11 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Object.camera_range = PointerProperty(type=CameraRangeProperties)
-    bpy.types.Scene.camera_list = CollectionProperty(type=CameraListItem)
-    bpy.types.Scene.camera_list_index = IntProperty(update=update_camera_list_index)
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Object.camera_range
-    del bpy.types.Scene.camera_list
-    del bpy.types.Scene.camera_list_index
 
 if __name__ == "__main__":
     register()

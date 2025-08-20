@@ -12,6 +12,7 @@ class COMPOSITOR_PT_panel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
         camera = scene.camera
+        cset = getattr(scene, 'cinematography_settings', None)
 
         box = layout.box()
         box.label(text="Cinematography")
@@ -19,23 +20,27 @@ class COMPOSITOR_PT_panel(bpy.types.Panel):
         row = box.row()
         row.prop(context.space_data, "lock_camera", text="Lock Camera to View")
 
+        if not cset:
+            box.label(text="Cinematography settings not available", icon='INFO')
+            return
+
         row = box.row()
-        row.prop(scene, "camera_type", expand=True)
+        row.prop(cset, "camera_type", expand=True)
 
         if camera and camera.type == 'CAMERA':
-            if scene.camera_type == 'PERSP':
+            if cset.camera_type == 'PERSP':
                 self.draw_perspective_settings(context, box)
-            elif scene.camera_type == 'ORTHO':
+            elif cset.camera_type == 'ORTHO':
                 self.draw_orthographic_settings(context, box)
             
             self.draw_clip_settings(context, box)
 
         box = layout.box()
         row = box.row()
-        row.prop(context.scene, "show_camera_manager", icon="TRIA_DOWN" if context.scene.show_camera_manager else "TRIA_RIGHT", icon_only=True, emboss=False)
+        row.prop(cset, "show_camera_manager", icon="TRIA_DOWN" if cset.show_camera_manager else "TRIA_RIGHT", icon_only=True, emboss=False)
         row.label(text="Camera Manager")
 
-        if context.scene.show_camera_manager:
+        if cset.show_camera_manager:
             self.draw_camera_manager(context, box)
 
         self.draw_output_resolution(context, layout)
@@ -50,8 +55,9 @@ class COMPOSITOR_PT_panel(bpy.types.Panel):
 
     def draw_camera_manager(self, context, layout):
         scene = context.scene
+        cset = scene.cinematography_settings
         row = layout.row()
-        row.template_list("CAMERA_UL_list", "", scene, "camera_list", scene, "camera_list_index", rows=3)
+        row.template_list("CAMERA_UL_list", "", cset, "camera_list", cset, "camera_list_index", rows=3)
 
         col = row.column(align=True)
         col.operator("camera.add_to_list", icon='ADD', text="")
@@ -66,8 +72,8 @@ class COMPOSITOR_PT_panel(bpy.types.Panel):
         row.operator("camera.update_timeline", text="Update Timeline")
         row.operator("camera.erase_all_keyframes", text="Erase All Keyframes")
 
-        if scene.camera_list and scene.camera_list_index >= 0:
-            camera_item = scene.camera_list[scene.camera_list_index]
+        if cset.camera_list and cset.camera_list_index >= 0:
+            camera_item = cset.camera_list[cset.camera_list_index]
             camera_obj = bpy.data.objects.get(camera_item.name)
             if camera_obj and camera_obj.type == 'CAMERA':
                 box = layout.box()
@@ -100,76 +106,56 @@ class COMPOSITOR_PT_panel(bpy.types.Panel):
             col.prop(camera.data, "clip_end", text="End")
 
     def draw_render_resolution(self, context, layout):
+        cset = context.scene.cinematography_settings
         row = layout.row()
         row.label(text="Render Resolution:")
         
         sub_row = row.row(align=True)
-        sub_row.prop(context.scene, "custom_resolution_x", text="X")
-        sub_row.prop(context.scene, "custom_resolution_y", text="Y")
+        sub_row.prop(cset, "custom_resolution_x", text="X")
+        sub_row.prop(cset, "custom_resolution_y", text="Y")
         
         row = layout.row()
-        row.prop(context.scene, "resolution_linked", text="Link Resolution")
+        row.prop(cset, "resolution_linked", text="Link Resolution")
 
     def draw_print_resolution(self, context, layout):
+        cset = context.scene.cinematography_settings
         layout.separator()
 
         box = layout.box()
         row = box.row()
-        row.prop(context.scene, "show_cinema_formats", icon="TRIA_DOWN" if context.scene.show_cinema_formats else "TRIA_RIGHT", icon_only=True, emboss=False)
+        row.prop(cset, "show_cinema_formats", icon="TRIA_DOWN" if cset.show_cinema_formats else "TRIA_RIGHT", icon_only=True, emboss=False)
         row.label(text="Cinema Formats")
 
-        if context.scene.show_cinema_formats:
+        if cset.show_cinema_formats:
             col = box.column(align=True)
-            for item in context.scene.bl_rna.properties["cinema_format"].enum_items:
+            for item in cset.bl_rna.properties["cinema_format"].enum_items:
                 op = col.operator("cinematography.set_cinema_resolution", text=item.name)
                 if op:
                     op.format = item.identifier
 
         box = layout.box()
         row = box.row()
-        row.prop(context.scene, "show_print_formats", icon="TRIA_DOWN" if context.scene.show_print_formats else "TRIA_RIGHT", icon_only=True, emboss=False)
+        row.prop(cset, "show_print_formats", icon="TRIA_DOWN" if cset.show_print_formats else "TRIA_RIGHT", icon_only=True, emboss=False)
         row.label(text="Print Formats")
 
-        if context.scene.show_print_formats:
+        if cset.show_print_formats:
             col = box.column(align=True)
-            for item in context.scene.bl_rna.properties["print_format"].enum_items:
+            for item in cset.bl_rna.properties["print_format"].enum_items:
                 op = col.operator("cinematography.set_print_resolution", text=item.name)
                 if op:
                     op.format = item.identifier
 
         row = layout.row()
-        row.prop(context.scene, "frame_rate")
+        row.prop(cset, "frame_rate")
         
         row = layout.row()
-        row.prop(context.scene, "resolution_orientation")
+        row.prop(cset, "resolution_orientation")
         
         row = layout.row()
-        row.prop(context.scene, "print_dpi")
+        row.prop(cset, "print_dpi")
 
 def register():
     print("Registering COMPOSITOR_PT_panel")
-    bpy.types.Scene.show_cinema_formats = bpy.props.BoolProperty(
-        name="Show Cinema Formats",
-        default=False
-    )
-    bpy.types.Scene.show_print_formats = bpy.props.BoolProperty(
-        name="Show Print Formats",
-        default=False
-    )
-    if not hasattr(bpy.types.Scene, "camera_type"):
-        bpy.types.Scene.camera_type = bpy.props.EnumProperty(
-            items=[
-                ('PERSP', "Perspective", "Perspective camera"),
-                ('ORTHO', "Orthographic", "Orthographic camera")
-            ],
-            name="Camera Type",
-            default='PERSP',
-            update=lambda self, context: bpy.ops.cinematography.set_camera_type(camera_type=self.camera_type)
-        )
-    bpy.types.Scene.show_camera_manager = bpy.props.BoolProperty(
-        name="Show Camera Manager",
-        default=False
-    )
     try:
         bpy.utils.register_class(COMPOSITOR_PT_panel)
     except Exception as e:
@@ -177,14 +163,6 @@ def register():
 
 def unregister():
     print("Unregistering COMPOSITOR_PT_panel")  
-    if hasattr(bpy.types.Scene, "camera_type"):
-        del bpy.types.Scene.camera_type
-    if hasattr(bpy.types.Scene, "show_camera_manager"):
-        del bpy.types.Scene.show_camera_manager
-    if hasattr(bpy.types.Scene, "show_cinema_formats"):
-        del bpy.types.Scene.show_cinema_formats
-    if hasattr(bpy.types.Scene, "show_print_formats"):
-        del bpy.types.Scene.show_print_formats
     try:
         bpy.utils.unregister_class(COMPOSITOR_PT_panel)
     except Exception as e:

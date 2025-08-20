@@ -16,9 +16,10 @@ class PNGOverlayOperator(Operator):
 
     def execute(self, context):
         scene = context.scene
+        settings = scene.legend_settings
         
-        if scene.colormap == 'CUSTOM':
-            colors_values = scene.colors_values
+        if settings.colormap == 'CUSTOM':
+            colors_values = settings.colors_values
             if not colors_values:
                 color_nodes = [
                     (0.0, (0, 0, 0)),  
@@ -33,13 +34,13 @@ class PNGOverlayOperator(Operator):
                     labels.append(item.value)
         else:
             colormaps = load_colormaps()
-            selected_colormap = colormaps.get(scene.colormap, [])
-            print(f"Selected colormap: {scene.colormap}")
+            selected_colormap = colormaps.get(settings.colormap, [])
+            print(f"Selected colormap: {settings.colormap}")
             print(f"Colormap data: {selected_colormap[:5]}")
             
-            start = scene.colormap_start
-            end = scene.colormap_end
-            subdivisions = scene.colormap_subdivisions
+            start = settings.colormap_start
+            end = settings.colormap_end
+            subdivisions = settings.colormap_subdivisions
             
             positions = np.linspace(0, 1, subdivisions)
             values = np.linspace(start, end, subdivisions)
@@ -60,15 +61,15 @@ class PNGOverlayOperator(Operator):
         try:
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
                 tmpname = tmpfile.name
-                font_type = scene.legend_font_type
-                font_path = scene.legend_system_font if font_type == 'SYSTEM' else scene.legend_font
+                font_type = settings.legend_font_type
+                font_path = settings.legend_system_font if font_type == 'SYSTEM' else settings.legend_font
                 
                 print(f"Attempting to create legend with font: {font_path} (Type: {font_type})")
-                create_gradient_bar(scene.legend_width, scene.legend_height, color_nodes,
-                                    labels, tmpname, scene.legend_name, 
-                                    scene.interpolation, scene.legend_orientation,
+                create_gradient_bar(settings.legend_width, settings.legend_height, color_nodes,
+                                    labels, tmpname, settings.legend_name, 
+                                    settings.interpolation, settings.legend_orientation,
                                     font_type, font_path,
-                                    scene.legend_text_color)  
+                                    settings.legend_text_color)  
             scene.use_nodes = True
             tree = scene.node_tree
 
@@ -88,13 +89,13 @@ class PNGOverlayOperator(Operator):
                 self.report({'ERROR'}, "Cannot load image")
                 return {'CANCELLED'}
 
-            scale_size_node.space = 'RENDER_SIZE' if scene.legend_scale_mode == 'RENDER' else 'SCENE_SIZE'
+            scale_size_node.space = 'RENDER_SIZE' if settings.legend_scale_mode == 'RENDER' else 'SCENE_SIZE'
             scale_size_node.inputs[1].default_value = 1.0
             scale_size_node.inputs[2].default_value = 1.0
 
             scale_legend_node.space = 'RELATIVE'
-            scale_legend_node.inputs[1].default_value = scene.legend_scale_x
-            scale_legend_node.inputs[2].default_value = scene.legend_scale_y
+            scale_legend_node.inputs[1].default_value = settings.legend_scale_x
+            scale_legend_node.inputs[2].default_value = settings.legend_scale_y
 
             render_layers.location = (0, 0)
             image_node.location = (0, 200)
@@ -118,5 +119,3 @@ class PNGOverlayOperator(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Error generating the legend: {str(e)}")
             return {'CANCELLED'}
-
-from ..utils.color_utils import interpolate_color

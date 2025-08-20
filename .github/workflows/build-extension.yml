@@ -3,23 +3,19 @@ name: Build SciBlend Extension
 on:
   push:
     branches: [ main, master ]
-    tags:
-      - 'v*'
+    tags: [ 'v*' ]
     paths:
       - 'blender_manifest.toml'
       - 'SciBlend/**'
+      - 'constraints/**'
       - 'scripts/**'
       - '.github/workflows/build-extension.yml'
   pull_request:
     branches: [ main, master ]
 
 jobs:
-  build-matrix:
+  build-all-platforms:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [ linux-x64, windows-x64, macos-x64, macos-arm64 ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,22 +26,24 @@ jobs:
           python-version: '3.11'
 
       - name: Upgrade pip
-        run: |
-          python -m pip install --upgrade pip
+        run: python -m pip install --upgrade pip
 
-      - name: Prepare wheels
+      - name: Prepare wheels (platform directories)
         run: |
-          mkdir -p wheels
-          chmod +x scripts/fetch_wheels.sh || true
+          chmod +x scripts/fetch_wheels.sh
           ./scripts/fetch_wheels.sh
 
-      - name: Build platform zip (no Blender)
+      - name: Build split zips (no Blender)
         run: |
-          python scripts/make_extension_zip.py --target "${{ matrix.target }}" --outdir dist
+          mkdir -p dist
+          python scripts/make_extension_zip.py --target linux-x64   --outdir dist
+          python scripts/make_extension_zip.py --target windows-x64 --outdir dist
+          python scripts/make_extension_zip.py --target macos-x64   --outdir dist
+          python scripts/make_extension_zip.py --target macos-arm64 --outdir dist
           ls -lh dist
 
-      - name: Upload artifact (${{ matrix.target }})
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sciblend-extension-${{ matrix.target }}
-          path: dist/*-${{ matrix.target }}.zip 
+          name: sciblend-extension-split
+          path: dist/*.zip

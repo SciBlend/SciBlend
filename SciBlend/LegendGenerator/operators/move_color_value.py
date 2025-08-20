@@ -9,14 +9,14 @@ class MoveColorValue(Operator):
     direction: StringProperty()
 
     def execute(self, context):
-        scene = context.scene
-        index = scene.color_values_index
+        settings = context.scene.legend_settings
+        index = settings.color_values_index
 
         if self.direction == 'UP' and index > 0:
-            scene.colors_values.move(index, index-1)
-            scene.color_values_index -= 1
-        elif self.direction == 'DOWN' and index < len(scene.colors_values) - 1:
-            scene.colors_values.move(index, index+1)
-            scene.color_values_index += 1
+            settings.colors_values.move(index, index-1)
+            settings.color_values_index -= 1
+        elif self.direction == 'DOWN' and index < len(settings.colors_values) - 1:
+            settings.colors_values.move(index, index+1)
+            settings.color_values_index += 1
 
         return {'FINISHED'}

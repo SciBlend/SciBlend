@@ -1,6 +1,5 @@
 import bpy
 import socket
-import threading
 import json
 import time
 import errno
@@ -8,6 +7,9 @@ from bpy.props import StringProperty, IntProperty, BoolProperty
 
 _active_socket = None
 _is_updating = False
+_buffer = b""
+_expected_size = None
+
 
 def show_message(message_type, message):
     """Show a popup message in Blender's UI.
@@ -21,6 +23,7 @@ def show_message(message_type, message):
     
     bpy.context.window_manager.popup_menu(draw, title=message, icon=message_type)
 
+
 def show_error_message(message):
     """Show an error popup message.
     
@@ -29,6 +32,7 @@ def show_error_message(message):
     """
     show_message('ERROR', message)
 
+
 def show_info_message(message):
     """Show an info popup message.
     
@@ -36,6 +40,7 @@ def show_info_message(message):
         message (str): Info message to display
     """
     show_message('INFO', message)
+
 
 def get_connection_error_help(error_code, host, port):
     """Get a helpful error message based on the connection error code.
@@ -59,6 +64,7 @@ def get_connection_error_help(error_code, host, port):
         return f"Connection timeout to {host}:{port}. Check network connection."
     else:
         return f"Connection error: {error_code}"
+
 
 def update_mesh_safe(context, mesh_data):
     """Thread-safe wrapper for updating mesh data.
@@ -84,6 +90,7 @@ def update_mesh_safe(context, mesh_data):
         print(f"[GoB] Error updating mesh: {e}")
         _is_updating = False
         return None
+
 
 def update_mesh(context, mesh_data):
     """Update or create a mesh from Paraview data.
@@ -214,13 +221,13 @@ def update_mesh(context, mesh_data):
         show_error_message(f"Error updating mesh: {e}")
         return False
 
+
 class GOB_OT_connect_to_paraview(bpy.types.Operator):
     """Operator to establish connection with Paraview"""
     bl_idname = "gob.connect_to_paraview"
     bl_label = "Connect to Paraview"
     
     _timer = None
-    _thread = None
     
     def execute(self, context):
         """Execute the connection to Paraview.
@@ -240,211 +247,109 @@ class GOB_OT_connect_to_paraview(bpy.types.Operator):
         success = self.connect_client(context)
         
         if success:
-            self._timer = context.window_manager.event_timer_add(1.0, window=context.window)
+            self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
             context.window_manager.modal_handler_add(self)
             return {'RUNNING_MODAL'}
         else:
             return {'CANCELLED'}
     
     def modal(self, context, event):
-        """Modal timer function to check connection status.
-        
-        Args:
-            context: Blender context
-            event: Timer event
-            
-        Returns:
-            set: Operator return set
-        """
+        """Modal timer function to poll socket and process incoming data."""
+        global _active_socket, _buffer, _expected_size
         gob = context.scene.gob_settings
         
-        if event.type == 'TIMER':
-            if not gob.is_connected:
-                self.cleanup(context)
-                return {'FINISHED'}
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        
+        if not gob.is_connected or _active_socket is None:
+            self.cleanup(context)
+            return {'FINISHED'}
+        
+        try:
+            if _expected_size is None:
+                chunk = _active_socket.recv(16)
+                if chunk:
+                    _buffer += chunk
+                    if len(_buffer) >= 16:
+                        header = _buffer[:16]
+                        _buffer = _buffer[16:]
+                        _expected_size = int(header.strip())
+                        print(f"[GoB] Expecting {_expected_size} bytes of data")
+            else:
+                # Read payload
+                remaining = _expected_size - len(_buffer)
+                if remaining > 0:
+                    chunk = _active_socket.recv(min(8192, remaining))
+                    if chunk:
+                        _buffer += chunk
+                    elif remaining > 0:
+                        # No data available right now
+                        pass
+                if _expected_size is not None and len(_buffer) >= _expected_size:
+                    payload = _buffer[:_expected_size]
+                    _buffer = _buffer[_expected_size:]
+                    _expected_size = None
+                    try:
+                        json_data = json.loads(payload.decode('utf-8'))
+                        bpy.app.timers.register(
+                            lambda: update_mesh_safe(bpy.context, json_data.copy()),
+                            first_interval=0.0
+                        )
+                    except json.JSONDecodeError as e:
+                        print(f"[GoB] Error decoding JSON: {e}")
+        except BlockingIOError:
+            pass
+        except Exception as e:
+            print(f"[GoB] Reception error: {e}")
+            gob.is_connected = False
+            self.cleanup(context)
+            return {'FINISHED'}
         
         return {'PASS_THROUGH'}
     
     def cleanup(self, context):
-        """Clean up timer on disconnect.
-        
-        Args:
-            context: Blender context
-        """
+        """Clean up timer on disconnect."""
+        global _active_socket, _buffer, _expected_size
         if self._timer:
             context.window_manager.event_timer_remove(self._timer)
             self._timer = None
+        try:
+            if _active_socket:
+                _active_socket.close()
+        except Exception:
+            pass
+        _active_socket = None
+        _buffer = b""
+        _expected_size = None
     
     def connect_client(self, context):
-        """Establish socket connection with Paraview.
-        
-        Args:
-            context: Blender context
-            
-        Returns:
-            bool: True if connection successful, False otherwise
-        """
+        """Establish socket connection with Paraview."""
         global _active_socket
         gob = context.scene.gob_settings
         
         try:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.settimeout(5.0)
-            
             print(f"[GoB] Attempting to connect to {gob.host}:{gob.port}...")
             client_socket.connect((gob.host, gob.port))
-            
+            client_socket.setblocking(False)
             _active_socket = client_socket
             gob.is_connected = True
-            
             print(f"[GoB] Connected to Paraview at {gob.host}:{gob.port}")
             self.report({'INFO'}, f"Connected to Paraview at {gob.host}:{gob.port}")
-            
-            self._thread = threading.Thread(
-                target=self.receive_data_thread,
-                args=(context.copy(), client_socket),
-                daemon=True
-            )
-            self._thread.start()
-            
             return True
-            
         except socket.error as e:
             error_code = e.errno if hasattr(e, 'errno') else 0
             error_msg = get_connection_error_help(error_code, gob.host, gob.port)
-            
             print(f"[GoB] Connection error: {e}")
             print(f"[GoB] {error_msg}")
-            
             self.report({'ERROR'}, f"Connection error: {e}")
             return False
-            
         except Exception as e:
             print(f"[GoB] Unexpected error while connecting: {e}")
             self.report({'ERROR'}, f"Unexpected error while connecting: {e}")
             return False
-    
-    def receive_data_thread(self, context, client_socket):
-        """Background thread to receive data from Paraview.
-        
-        Args:
-            context: Blender context
-            client_socket: Connected socket to receive from
-        """
-        global _active_socket, _is_updating
-        try:
-            if context is None:
-                scene = bpy.context.scene
-                gob = scene.gob_settings if hasattr(scene, 'gob_settings') else None
-            elif isinstance(context, dict):
-                scene = bpy.context.scene
-                gob = scene.gob_settings if hasattr(scene, 'gob_settings') else None
-            else:
-                gob = context.scene.gob_settings
-            
-            if not gob:
-                print("[GoB] Error: Could not access gob_settings")
-                return
-            
-            client_socket.settimeout(0.1)
-            
-            print("[GoB] Starting data reception from Paraview...")
-            
-            buffer = b""
-            max_buffer_size = 100 * 1024 * 1024
-            
-            while gob.is_connected:
-                try:
-                    size_header = b""
-                    while len(size_header) < 16:
-                        chunk = client_socket.recv(16 - len(size_header))
-                        if not chunk:
-                            print("[GoB] Connection closed by server")
-                            break
-                        size_header += chunk
-                    
-                    if not size_header:
-                        break
-                    
-                    expected_size = int(size_header.strip())
-                    print(f"[GoB] Expecting {expected_size} bytes of data")
-                    
-                    buffer = b""
-                    while len(buffer) < expected_size:
-                        remaining = expected_size - len(buffer)
-                        chunk_size = min(8192, remaining)
-                        chunk = client_socket.recv(chunk_size)
-                        
-                        if not chunk:
-                            print("[GoB] Connection closed during reception")
-                            break
-                            
-                        buffer += chunk
-                        print(f"[GoB] Progress: {len(buffer)}/{expected_size} bytes received")
-                    
-                    if len(buffer) == expected_size:
-                        try:
-                            json_data = json.loads(buffer.decode('utf-8'))
-                            print(f"[GoB] JSON data received successfully")
-                            
-                            if not _is_updating:
-                                bpy.app.timers.register(
-                                    lambda: update_mesh_safe(bpy.context, json_data.copy()),
-                                    first_interval=0.0
-                                )
-                        except json.JSONDecodeError as e:
-                            print(f"[GoB] Error decoding JSON: {e}")
-                    
-                except socket.timeout:
-                    continue
-                except Exception as e:
-                    print(f"[GoB] Reception error: {e}")
-                    time.sleep(0.5)
-            
-            try:
-                client_socket.close()
-                _active_socket = None
-            except:
-                pass
-                
-            def update_connection_state():
-                try:
-                    scene = bpy.context.scene
-                    if hasattr(scene, 'gob_settings'):
-                        scene.gob_settings.is_connected = False
-                        scene.gob_settings.client_socket = None
-                    return None
-                except:
-                    return None
-                    
-            bpy.app.timers.register(update_connection_state)
-            
-            print("[GoB] Disconnected from Paraview")
-            
-            bpy.app.timers.register(
-                lambda: self.show_info_message_safe("Disconnected from Paraview"),
-                first_interval=0.1
-            )
-        except Exception as e:
-            print(f"[GoB] Error in reception thread: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def show_info_message_safe(self, message):
-        """Show an info message in a thread-safe way.
-        
-        Args:
-            message (str): Message to display
-            
-        Returns:
-            bool: True if message shown successfully, False otherwise
-        """
-        try:
-            show_info_message(message)
-            return True
-        except Exception as e:
-            print(f"[GoB] Error showing message: {e}")
-            return False
+
 
 class GOB_OT_disconnect_from_paraview(bpy.types.Operator):
     """Operator to disconnect from Paraview"""
@@ -452,14 +357,7 @@ class GOB_OT_disconnect_from_paraview(bpy.types.Operator):
     bl_label = "Disconnect"
     
     def execute(self, context):
-        """Execute the disconnection from Paraview.
-        
-        Args:
-            context: Blender context
-            
-        Returns:
-            set: Operator return set
-        """
+        """Execute the disconnection from Paraview."""
         global _active_socket
         gob = context.scene.gob_settings
         
@@ -474,15 +372,13 @@ class GOB_OT_disconnect_from_paraview(bpy.types.Operator):
                 except:
                     pass
                 _active_socket = None
-            
             gob.is_connected = False
-            
             self.report({'INFO'}, "Disconnected from Paraview")
-            
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Error disconnecting: {e}")
             return {'CANCELLED'}
+
 
 class GOB_OT_refresh_from_paraview(bpy.types.Operator):
     """Operator to request a data refresh from Paraview"""
@@ -490,14 +386,7 @@ class GOB_OT_refresh_from_paraview(bpy.types.Operator):
     bl_label = "Refresh from Paraview"
     
     def execute(self, context):
-        """Execute the refresh request to Paraview.
-        
-        Args:
-            context: Blender context
-            
-        Returns:
-            set: Operator return set
-        """
+        """Execute the refresh request to Paraview."""
         global _active_socket
         gob = context.scene.gob_settings
         
@@ -521,6 +410,7 @@ class GOB_OT_refresh_from_paraview(bpy.types.Operator):
             _active_socket = None
             return {'CANCELLED'}
 
+
 class GOBSettings(bpy.types.PropertyGroup):
     """Property group for GOB addon settings"""
     host: StringProperty(
@@ -543,6 +433,7 @@ class GOBSettings(bpy.types.PropertyGroup):
         default=False
     )
 
+
 classes = (
     GOBSettings,
     GOB_OT_connect_to_paraview,
@@ -550,17 +441,20 @@ classes = (
     GOB_OT_refresh_from_paraview,
 )
 
+
 def register():
     """Register the addon classes"""
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.gob_settings = bpy.props.PointerProperty(type=GOBSettings)
 
+
 def unregister():
     """Unregister the addon classes"""
     del bpy.types.Scene.gob_settings
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
 
 if __name__ == "__main__":
     register()

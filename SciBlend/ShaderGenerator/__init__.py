@@ -462,6 +462,10 @@ class MATERIAL_PT_shader_generator(Panel):
         layout = self.layout
         scene = context.scene
 
+        if not hasattr(scene, 'custom_colorramp'):
+            layout.label(text="Shader settings not available", icon='INFO')
+            return
+
         layout.label(text="Import Colormaps", icon='IMPORT')
         layout.operator(COLORRAMP_OT_import_json.bl_idname, text="Import Scientific Colormaps", icon='FILE_NEW')
 
