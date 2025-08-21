@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 id = "sciblend"
-version = "1.1.0"
+version = "1.1.1"
 name = "SciBlend"
 tagline = "Scientific visualization tools for Blender"
 type = "add-on"
