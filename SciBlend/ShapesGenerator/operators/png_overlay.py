@@ -2,6 +2,41 @@ import bpy
 import numpy as np
 from bpy.types import Operator
 from ..utils.shape_generator import generate_shape
+import os
+import tempfile
+import uuid
+import re
+
+def _sanitize_filename_component(name):
+    """Return a filesystem-safe component derived from name."""
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(name))
+    return safe or "shape"
+
+def _get_unique_temp_png_path(base_name):
+    """Build a unique, writable temporary PNG file path for the given base name."""
+    temp_dir = getattr(bpy.app, "tempdir", None) or tempfile.gettempdir()
+    base_safe = _sanitize_filename_component(base_name)
+    unique = uuid.uuid4().hex
+    return os.path.join(temp_dir, f"sciblend_{base_safe}_{unique}.png")
+
+def _remove_blender_image_and_file(image):
+    """Remove the Blender image datablock and delete its underlying file if present."""
+    if not image:
+        return
+    path = None
+    try:
+        path = bpy.path.abspath(getattr(image, "filepath", ""))
+    except Exception:
+        path = None
+    try:
+        bpy.data.images.remove(image)
+    except Exception:
+        pass
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
 
 class SHAPESGENERATOR_OT_UpdateShapes(Operator):
     bl_idname = "shapesgenerator.update_shapes"
@@ -134,11 +169,11 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                 print(f"Error: No image generated for shape {shape.name}")
                 continue
 
-            temp_path = bpy.path.abspath(f"//temp_shape_{shape.name}.png")
-            image.save(temp_path, format='PNG')
-            
             if image_node.image:
-                bpy.data.images.remove(image_node.image)
+                _remove_blender_image_and_file(image_node.image)
+
+            temp_path = _get_unique_temp_png_path(shape.name)
+            image.save(temp_path, format='PNG')
             image_node.image = bpy.data.images.load(temp_path)
             
             transform_node.inputs['X'].default_value = shape.position_x * 1000 # Amplificar el efecto de la posición
