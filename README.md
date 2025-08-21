@@ -7,6 +7,7 @@
 [![Linux x64](https://img.shields.io/badge/download-linux--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.0/sciblend-1.1.0-linux-x64.zip)
 [![Windows x64](https://img.shields.io/badge/download-windows--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.0/sciblend-1.1.0-windows-x64.zip)
 [![macOS x64](https://img.shields.io/badge/download-macos--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.0/sciblend-1.1.0-macos-x64.zip)
+[![macOS ARM64](https://img.shields.io/badge/download-macos--arm64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.0/sciblend-1.1.0-macos-arm64.zip)
 
 **SciBlend** is an extensible, Python-based toolkit developed to facilitate advanced scientific visualization workflows within Blender. It integrates Blender's rendering capabilities (Cycles & EEVEE) with functionalities for processing and visualizing complex computational data, aiming to bridge the gap often found between specialized data analysis tools and general-purpose 3D creation suites.
 
