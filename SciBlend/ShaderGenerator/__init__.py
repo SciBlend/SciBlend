@@ -13,7 +13,6 @@ from bpy.props import (
 )
 from bpy.types import Operator, Panel, PropertyGroup
 import numpy as np
-from scipy import interpolate
 import logging
 
 # Configurar el logging
@@ -191,34 +190,53 @@ class COLORRAMP_OT_import_json(Operator):
         return {'RUNNING_MODAL'}
 
 def interpolate_colormap(colors, num_points=32):
+    """Resample a color map to a fixed number of evenly spaced stops using linear interpolation.
+
+    Parameters
+    ----------
+    colors : list[dict]
+        List of items with keys 'position' in [0, 1] and 'color' as RGB tuple.
+    num_points : int
+        Number of evenly spaced samples to generate in [0, 1].
+
+    Returns
+    -------
+    list[dict]
+        Resampled colors with positions in [0, 1] and RGB tuples.
+    """
     positions = [color['position'] for color in colors]
     rgb_colors = [color['color'] for color in colors]
-    
+
     if positions[0] != 0:
         positions.insert(0, 0)
         rgb_colors.insert(0, rgb_colors[0])
     if positions[-1] != 1:
         positions.append(1)
         rgb_colors.append(rgb_colors[-1])
-    
-    r_interp = interpolate.interp1d(positions, [c[0] for c in rgb_colors], bounds_error=False, fill_value="extrapolate")
-    g_interp = interpolate.interp1d(positions, [c[1] for c in rgb_colors], bounds_error=False, fill_value="extrapolate")
-    b_interp = interpolate.interp1d(positions, [c[2] for c in rgb_colors], bounds_error=False, fill_value="extrapolate")
-    
-    new_positions = np.linspace(0, 1, num_points)
-    
+
+    paired = sorted(zip(positions, rgb_colors), key=lambda x: x[0])
+    positions_sorted = [p for p, _ in paired]
+    r_values = [c[0] for _, c in paired]
+    g_values = [c[1] for _, c in paired]
+    b_values = [c[2] for _, c in paired]
+
+    new_positions = np.linspace(0.0, 1.0, num_points)
+    r_interp = np.interp(new_positions, positions_sorted, r_values)
+    g_interp = np.interp(new_positions, positions_sorted, g_values)
+    b_interp = np.interp(new_positions, positions_sorted, b_values)
+
     new_colors = []
-    for pos in new_positions:
+    for idx, pos in enumerate(new_positions):
         new_colors.append({
-            'position': pos,
-            'color': (float(r_interp(pos)), float(g_interp(pos)), float(b_interp(pos)))
+            'position': float(pos),
+            'color': (float(r_interp[idx]), float(g_interp[idx]), float(b_interp[idx]))
         })
-    
+
     return new_colors
 
 def get_color_range(obj, attribute_name, normalization='AUTO'):
     if normalization == 'GLOBAL':
-        # Buscar el atributo en todos los objetos de la escena
+
         all_values = []
         for obj in bpy.data.objects:
             if obj.type == 'MESH' and attribute_name in obj.data.attributes:
@@ -461,10 +479,6 @@ class MATERIAL_PT_shader_generator(Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-
-        if not hasattr(scene, 'custom_colorramp'):
-            layout.label(text="Shader settings not available", icon='INFO')
-            return
 
         layout.label(text="Import Colormaps", icon='IMPORT')
         layout.operator(COLORRAMP_OT_import_json.bl_idname, text="Import Scientific Colormaps", icon='FILE_NEW')
