@@ -14,7 +14,7 @@ if not exist wheels\macos-arm64 mkdir wheels\macos-arm64
 set "PYVER=3.11"
 
 rem Linux (manylinux2014 x64)
-pip download -r constraints\base.txt --dest .\wheels\linux-x64 --only-binary=:all: --python-version=%PYVER% --platform=manylinux2014_x86_64 || ver >nul
+pip download -r constraints\linux-x64.txt --dest .\wheels\linux-x64 --only-binary=:all: --python-version=%PYVER% --platform=manylinux2014_x86_64 || ver >nul
 
 rem Windows x64
 pip download -r constraints\base.txt --dest .\wheels\windows-x64 --only-binary=:all: --python-version=%PYVER% --platform=win_amd64 || ver >nul

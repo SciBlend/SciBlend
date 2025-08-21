@@ -31,9 +31,13 @@ ALLOW_DIRS = {
 def collect_wheels(target: str) -> List[Path]:
 	"""Select wheel files for a given target platform.
 
-	Includes universal wheels from ``wheels/common`` (``*-none-any.whl``) and
-	platform-specific wheels from ``wheels/<target>``. NumPy wheels are excluded
-	as Blender bundles NumPy.
+	Includes universal wheels (``*-none-any.whl``) and platform-specific wheels.
+	Supports both nested structure (``wheels/common/``, ``wheels/<target>/``) and
+	flat structure (all wheels in ``wheels/`` directory).
+
+	Search order for the wheels root is both ``SciBlend/wheels/`` and the
+	repository top-level ``wheels/``. Results are merged with de-duplication by
+	filename. NumPy wheels are excluded as Blender bundles NumPy.
 
 	Args:
 		target: Platform key from PLATFORM_TAGS.
@@ -41,29 +45,61 @@ def collect_wheels(target: str) -> List[Path]:
 	Returns:
 		List of wheel file paths selected from the local ``wheels/`` directory.
 	"""
-	wheel_root = ROOT / "wheels"
-	if not wheel_root.is_dir():
-		raise SystemExit("wheels/ folder not found")
-
+	wheel_root_candidates = [ROOT / "SciBlend" / "wheels", ROOT / "wheels"]
 	selected: List[Path] = []
-	common_dir = wheel_root / "common"
-	plat_dir = wheel_root / target
-
-	if common_dir.is_dir():
-		for fn in common_dir.glob("*.whl"):
+	seen_names = set()
+	any_root_found = False
+	
+	platform_tags = PLATFORM_TAGS.get(target, ())
+	
+	for wheel_root in wheel_root_candidates:
+		if not wheel_root.is_dir():
+			continue
+		any_root_found = True
+		
+		common_dir = wheel_root / "common"
+		plat_dir = wheel_root / target
+		
+		if common_dir.is_dir():
+			for fn in common_dir.glob("*.whl"):
+				name = fn.name
+				if name in seen_names:
+					continue
+				if name.startswith("numpy-"):
+					continue
+				if name.endswith("-none-any.whl"):
+					selected.append(fn)
+					seen_names.add(name)
+		
+		if plat_dir.is_dir():
+			for fn in plat_dir.glob("*.whl"):
+				name = fn.name
+				if name in seen_names:
+					continue
+				if name.startswith("numpy-"):
+					continue
+				selected.append(fn)
+				seen_names.add(name)
+		
+		for fn in wheel_root.glob("*.whl"):
 			name = fn.name
+			if name in seen_names:
+				continue
 			if name.startswith("numpy-"):
 				continue
+			
 			if name.endswith("-none-any.whl"):
 				selected.append(fn)
-
-	if plat_dir.is_dir():
-		for fn in plat_dir.glob("*.whl"):
-			name = fn.name
-			if name.startswith("numpy-"):
-				continue
-			if not name.endswith("-none-any.whl"):
+				seen_names.add(name)
+			elif any(tag in name for tag in platform_tags):
 				selected.append(fn)
+				seen_names.add(name)
+
+	if not any_root_found:
+		raise SystemExit("wheels folder not found (looked in 'wheels/' and 'SciBlend/wheels/')")
+	
+	if not selected:
+		raise SystemExit(f"No wheels found for target '{target}'. Check that wheels are present in the wheels directory.")
 
 	return selected
 
@@ -96,59 +132,6 @@ def copy_minimal_payload(dst: Path) -> None:
 				shutil.copy2(root_p / f, dst / rel / f)
 
 
-def rewrite_manifest_wheels(tmp_root: Path, selected: List[Path]) -> None:
-	"""Rewrite wheels section in the manifest to match ``selected`` wheels.
-
-	If a wheels block is present, it is replaced. If not present, a new block
-	is appended at the end of the file.
-	"""
-	manifest = tmp_root / "blender_manifest.toml"
-	if not manifest.exists():
-		return
-	lines = manifest.read_text(encoding="utf-8").splitlines()
-	start = None
-	end = None
-	for i, line in enumerate(lines):
-		if line.strip().startswith("wheels = ["):
-			start = i
-			break
-	if start is None:
-		block = ["wheels = ["]
-		for wf in selected:
-			block.append(f"  \"./wheels/{wf.name}\",")
-		block.append("]")
-		lines.extend(block)
-		manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
-		return
-	for j in range(start, len(lines)):
-		if lines[j].strip() == "]":
-			end = j
-			break
-	if end is None:
-		end = start
-	new_block = [lines[start].split("[")[0] + "["]
-	for wf in selected:
-		new_block.append(f"  \"./wheels/{wf.name}\",")
-	new_block.append("]")
-	lines = lines[:start] + new_block + lines[end+1:]
-	manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def rewrite_manifest_platforms(tmp_root: Path, target: str) -> None:
-	"""Replace ``platforms`` list with the single ``target`` in staged manifest."""
-	manifest = tmp_root / "blender_manifest.toml"
-	if not manifest.exists():
-		return
-	lines = manifest.read_text(encoding="utf-8").splitlines()
-	rewrote = False
-	for i, line in enumerate(lines):
-		if line.strip().startswith("platforms"):
-			lines[i] = f'platforms = ["{target}"]'
-			rewrote = True
-			break
-	if not rewrote:
-		lines.append(f'platforms = ["{target}"]')
-	manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def make_zip(target: str, outdir: Path) -> Path:
@@ -170,13 +153,18 @@ def make_zip(target: str, outdir: Path) -> Path:
 		copy_minimal_payload(tmp)
 
 		selected = collect_wheels(target)
+		if not selected:
+			raise SystemExit(f"No wheels selected for target '{target}'")
+		
 		wheels_dst = tmp / "wheels"
 		wheels_dst.mkdir(parents=True, exist_ok=True)
 		for wf in selected:
 			shutil.copy2(wf, wheels_dst / wf.name)
+		
+		copied_wheels = list(wheels_dst.glob("*.whl"))
+		if not copied_wheels:
+			raise SystemExit(f"No wheels were copied to zip for target '{target}'")
 
-		rewrite_manifest_platforms(tmp, target)
-		rewrite_manifest_wheels(tmp, selected)
 
 		shutil.make_archive(str(zip_path.with_suffix("")), 'zip', root_dir=tmp)
 	return zip_path
