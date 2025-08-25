@@ -32,7 +32,6 @@ wheels = [
   "./wheels/cligj-0.7.2-py3-none-any.whl",
   "./wheels/cycler-0.12.1-py3-none-any.whl",
   "./wheels/geopandas-1.0.1-py3-none-any.whl",
-  "./wheels/importlib_metadata-8.7.0-py3-none-any.whl",
   "./wheels/packaging-25.0-py3-none-any.whl",
   "./wheels/pyparsing-3.2.3-py3-none-any.whl",
   "./wheels/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
