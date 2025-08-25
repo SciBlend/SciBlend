@@ -418,6 +418,13 @@ class X3DImportSettings(bpy.types.PropertyGroup):
         type=bpy.types.Material,
         name="Shared Material"
     )
+    loop_count: bpy.props.IntProperty(
+        name="Loop",
+        description="Number of times to repeat the imported sequence",
+        default=1,
+        min=1,
+        soft_max=200,
+    )
 
 class SciBlendPanel(bpy.types.Panel):
     bl_label = "Advanced Core"
@@ -446,6 +453,8 @@ class SciBlendPanel(bpy.types.Panel):
         row.prop(settings, "scale_factor")
         row.prop(settings, "axis_forward")
         row.prop(settings, "axis_up")
+        row = box.row(align=True)
+        row.prop(settings, "loop_count")
 
         box = layout.box()
         box.label(text="Material", icon='MATERIAL')

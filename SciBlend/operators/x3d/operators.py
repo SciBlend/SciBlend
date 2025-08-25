@@ -4,7 +4,7 @@ from bpy.props import StringProperty, CollectionProperty
 import os
 import re
 from .x3d_utils import import_x3d_minimal
-from ..utils.scene import clear_scene
+from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
 
 class ImportX3DOperator(bpy.types.Operator, ImportHelper):
@@ -23,25 +23,22 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
         """Import selected .x3d files as a sequence (or a single file if one is selected)."""
         settings = context.scene.x3d_import_settings
         scale_factor = settings.scale_factor
+        loop_count = max(1, getattr(settings, "loop_count", 1))
 
-        # Build file list from selection or fallback to single filepath
         selected_files = [f.name for f in self.files] if self.files else []
         if selected_files:
             x3d_files = [os.path.join(self.directory, f) for f in selected_files if f.lower().endswith('.x3d')]
         else:
-            # Single file fallback
             if self.filepath and self.filepath.lower().endswith('.x3d'):
                 x3d_files = [self.filepath]
             else:
                 x3d_files = []
 
-        # Filter to existing files and sort for stable order
         x3d_files = sorted([p for p in x3d_files if os.path.exists(p)])
 
         if settings.overwrite_scene:
             clear_scene(context)
 
-        # Create or reuse shared material using vertex color attribute 'Col'
         material = settings.shared_material
         if material is None:
             material = bpy.data.materials.new(name="SharedMaterial")
@@ -58,6 +55,7 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
             links.new(bsdf.outputs['BSDF'], material_output.inputs['Surface'])
 
         imported_count = 0
+        num_frames = len(x3d_files)
         for frame, x3d_file in enumerate(x3d_files, start=1):
             try:
                 obj = import_x3d_minimal(x3d_file, name=os.path.basename(x3d_file), scale=scale_factor)
@@ -70,23 +68,14 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
                 if obj.type == 'MESH':
                     obj.data.materials.clear()
                     obj.data.materials.append(material)
-                # Keyframe visibility for sequences; skip for single frame
-                if imported_count > 1 or len(x3d_files) > 1:
-                    obj.hide_render = False
-                    obj.hide_viewport = False
-                    obj.keyframe_insert(data_path="hide_render", frame=frame)
-                    obj.keyframe_insert(data_path="hide_viewport", frame=frame)
-                    obj.hide_render = True
-                    obj.hide_viewport = True
-                    if frame > 1:
-                        obj.keyframe_insert(data_path="hide_render", frame=frame-1)
-                        obj.keyframe_insert(data_path="hide_viewport", frame=frame-1)
-                    if frame < len(x3d_files):
-                        obj.keyframe_insert(data_path="hide_render", frame=frame+1)
-                        obj.keyframe_insert(data_path="hide_viewport", frame=frame+1)
+                if num_frames > 1 or loop_count > 1:
+                    for k in range(loop_count):
+                        occurrence = frame + (k * num_frames)
+                        keyframe_visibility_single_frame(obj, occurrence)
+                    enforce_constant_interpolation(obj)
 
         bpy.context.scene.frame_start = 1
-        bpy.context.scene.frame_end = max(1, imported_count)
+        bpy.context.scene.frame_end = max(1, (imported_count if num_frames > 0 else 1) * loop_count)
         bpy.context.scene.frame_current = 1
 
         for obj in bpy.data.objects:

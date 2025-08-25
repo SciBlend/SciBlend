@@ -4,7 +4,7 @@ from bpy.props import StringProperty, FloatProperty, EnumProperty, BoolProperty
 import numpy as np
 import os
 import math
-from ..utils.scene import clear_scene
+from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
 try:
     import netCDF4 as nc
@@ -63,9 +63,10 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
             else:
                 time_steps = 1
                 variable_data = np.expand_dims(variable[:], 0)
+            loop_count = max(1, getattr(context.scene.x3d_import_settings, "loop_count", 1))
             if has_time:
                 context.scene.frame_start = 1
-                context.scene.frame_end = time_steps
+                context.scene.frame_end = time_steps * loop_count
             if context.scene.x3d_import_settings.overwrite_scene:
                 clear_scene(context)
             material = self.create_material(variable_data, self.variable_name)
@@ -131,7 +132,7 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
                 context.collection.objects.link(obj)
                 obj.data.materials.append(material)
                 if has_time:
-                    self.setup_animation(obj, frame, time_steps)
+                    self.setup_animation(obj, frame, time_steps, loop_count)
             dataset.close()
             self.report({'INFO'}, "Imported NetCDF data successfully")
             return {'FINISHED'}
@@ -208,23 +209,12 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
         links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
         return material
 
-    def setup_animation(self, obj, frame, time_steps):
-        """Insert keyframes to reveal one frame per time step."""
-        obj.hide_viewport = False
-        obj.hide_render = False
-        obj.keyframe_insert(data_path="hide_viewport", frame=frame+1)
-        obj.keyframe_insert(data_path="hide_render", frame=frame+1)
-        obj.hide_viewport = True
-        obj.hide_render = True
-        if frame > 0:
-            obj.keyframe_insert(data_path="hide_viewport", frame=frame)
-            obj.keyframe_insert(data_path="hide_render", frame=frame)
-        if frame < time_steps - 1:
-            obj.keyframe_insert(data_path="hide_viewport", frame=frame+2)
-            obj.keyframe_insert(data_path="hide_render", frame=frame+2)
-        if obj.animation_data and obj.animation_data.action:
-            for fcurve in obj.animation_data.action.fcurves:
-                for kf in fcurve.keyframe_points:
-                    kf.interpolation = 'CONSTANT'
+    def setup_animation(self, obj, frame, time_steps, loop_count):
+        """Insert keyframes to reveal one frame per time step, repeated for loop_count."""
+        base = frame + 1
+        for k in range(loop_count):
+            occurrence = base + (k * time_steps)
+            keyframe_visibility_single_frame(obj, occurrence)
+        enforce_constant_interpolation(obj)
 
 __all__ = ["ImportNetCDFOperator"] 

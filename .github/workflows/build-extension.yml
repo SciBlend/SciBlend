@@ -25,21 +25,40 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Prepare wheels (platform directories)
+      - name: Fetch platform wheels
         run: |
+          set -euo pipefail
           chmod +x scripts/fetch_wheels.sh
           ./scripts/fetch_wheels.sh
 
-      - name: Build split zips (no Blender)
+      - name: Consolidate wheels into root wheels/
         run: |
+          set -euo pipefail
+          mkdir -p wheels
+          for d in wheels/linux-x64 wheels/windows-x64 wheels/macos-x64 wheels/macos-arm64 wheels/common; do
+            if [ -d "$d" ]; then
+              shopt -s nullglob
+              mv -f "$d"/*.whl wheels/ || true
+              shopt -u nullglob
+            fi
+          done
+          ls -lh wheels || true
+
+      - name: Download Blender 4.5.1
+        run: |
+          set -euo pipefail
+          BLENDER_VERSION=4.5.1
+          BASE_URL=https://download.blender.org/release/Blender4.5
+          FILE=blender-${BLENDER_VERSION}-linux-x64.tar.xz
+          curl -L -o "$RUNNER_TEMP/$FILE" "$BASE_URL/$FILE"
+          tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/$FILE"
+          echo "BLENDER_BIN=$(find "$RUNNER_TEMP" -type f -name blender -path '*linux-x64/*' | head -n1)" >> "$GITHUB_ENV"
+
+      - name: Build extension (split-platforms)
+        run: |
+          set -euo pipefail
           mkdir -p dist
-          python scripts/make_extension_zip.py --target linux-x64   --outdir dist
-          python scripts/make_extension_zip.py --target windows-x64 --outdir dist
-          python scripts/make_extension_zip.py --target macos-x64   --outdir dist
-          python scripts/make_extension_zip.py --target macos-arm64 --outdir dist
+          "$BLENDER_BIN" --command extension build --source-dir . --output-dir dist --split-platforms
           ls -lh dist
 
       - name: Upload artifacts

@@ -50,4 +50,29 @@ def clear_scene(context: bpy.types.Context) -> None:
 					except Exception:
 						pass
 		except Exception:
-			pass 
+			pass
+
+
+def keyframe_visibility_single_frame(obj: bpy.types.Object, frame: int) -> None:
+	"""Insert keyframes so the object is visible only at the given frame.
+
+	The function sets hide flags to be disabled exactly at 'frame' and enabled at 'frame-1' and 'frame+1'.
+	"""
+	obj.hide_viewport = False
+	obj.hide_render = False
+	obj.keyframe_insert(data_path="hide_viewport", frame=frame)
+	obj.keyframe_insert(data_path="hide_render", frame=frame)
+	obj.hide_viewport = True
+	obj.hide_render = True
+	obj.keyframe_insert(data_path="hide_viewport", frame=frame - 1)
+	obj.keyframe_insert(data_path="hide_render", frame=frame - 1)
+	obj.keyframe_insert(data_path="hide_viewport", frame=frame + 1)
+	obj.keyframe_insert(data_path="hide_render", frame=frame + 1)
+
+
+def enforce_constant_interpolation(obj: bpy.types.Object) -> None:
+	"""Force all keyframes on the object's action to use CONSTANT interpolation."""
+	if obj.animation_data and obj.animation_data.action:
+		for fcurve in obj.animation_data.action.fcurves:
+			for kf in fcurve.keyframe_points:
+				kf.interpolation = 'CONSTANT' 

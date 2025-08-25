@@ -5,7 +5,7 @@ from bpy.types import Operator
 import os
 import math
 import mathutils
-from ..utils.scene import clear_scene
+from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
 # VTK cell type ids
 VTK_VERTEX = 1
@@ -33,7 +33,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 	bl_options = {'PRESET', 'UNDO'}
 
 	filename_ext = ""
-	filter_glob: StringProperty(default="*.vtk;*.vtu;*.pvtu", options={'HIDDEN'})
+	filter_glob: StringProperty(default="*.vtk;*.vtu;*.pvtu;*.vtp;*.pvtp", options={'HIDDEN'})
 
 	files: CollectionProperty(
 		name="File Path",
@@ -51,6 +51,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 	height_scale: FloatProperty(name="Height Scale", default=1.0, min=0.01, max=100.0)
 
 	def _vtk_available(self) -> bool:
+		"""Return True if VTK modules can be imported in the current environment."""
 		try:
 			from vtkmodules.vtkCommonCore import vtkVersion  # noqa: F401
 			return True
@@ -58,18 +59,20 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			return False
 
 	def execute(self, context):
+		"""Execute the import process across the selected files and create keyframed visibility when needed."""
 		if not self._vtk_available():
 			self.report({'INFO'}, "VTK core not detected; attempting vtkmodules import.")
 		settings = context.scene.x3d_import_settings
 		self.scale_factor = settings.scale_factor
 		self.axis_forward = settings.axis_forward
 		self.axis_up = settings.axis_up
+		loop_count = max(1, getattr(settings, "loop_count", 1))
 		if settings.overwrite_scene:
 			clear_scene(context)
 		files_to_process = self.files[self.start_frame_number-1:self.end_frame_number]
 		num_frames = len(files_to_process)
 		context.scene.frame_start = self.start_frame_number
-		context.scene.frame_end = self.start_frame_number + num_frames - 1
+		context.scene.frame_end = self.start_frame_number + (num_frames * loop_count) - 1 if num_frames > 0 else self.start_frame_number
 		for i, file_elem in enumerate(files_to_process):
 			filepath = os.path.join(self.directory, file_elem.name)
 			frame = self.start_frame_number + i
@@ -82,19 +85,11 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			scale = mathutils.Matrix.Scale(self.scale_factor, 4)
 			obj.matrix_world = rotation @ scale
 			bpy.context.view_layer.update()
-			if num_frames > 1:
-				obj.hide_viewport = False
-				obj.hide_render = False
-				obj.keyframe_insert(data_path="hide_viewport", frame=frame)
-				obj.keyframe_insert(data_path="hide_render", frame=frame)
-				obj.hide_viewport = True
-				obj.hide_render = True
-				if frame > 1:
-					obj.keyframe_insert(data_path="hide_viewport", frame=frame-1)
-					obj.keyframe_insert(data_path="hide_render", frame=frame-1)
-				if frame < num_frames:
-					obj.keyframe_insert(data_path="hide_viewport", frame=frame+1)
-					obj.keyframe_insert(data_path="hide_render", frame=frame+1)
+			if num_frames > 1 or loop_count > 1:
+				for k in range(loop_count):
+					occurrence = frame + (k * num_frames)
+					keyframe_visibility_single_frame(obj, occurrence)
+				enforce_constant_interpolation(obj)
 			else:
 				obj.hide_viewport = False
 				obj.hide_render = False
@@ -103,7 +98,12 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 	def _read_grid(self, filepath):
 		"""Read VTK/vtu/pvtu grid and return vertices, edges, faces, and point_data."""
 		from vtkmodules.vtkIOLegacy import vtkUnstructuredGridReader, vtkPolyDataReader
-		from vtkmodules.vtkIOXML import vtkXMLUnstructuredGridReader, vtkXMLPUnstructuredGridReader
+		from vtkmodules.vtkIOXML import (
+			vtkXMLUnstructuredGridReader,
+			vtkXMLPUnstructuredGridReader,
+			vtkXMLPolyDataReader,
+			vtkXMLPPolyDataReader,
+		)
 		
 		extension = os.path.splitext(filepath)[1].lower()
 		if extension == '.vtk':
@@ -126,16 +126,40 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			reader.SetFileName(filepath)
 			reader.Update()
 			data = reader.GetOutput()
+		elif extension == '.vtp':
+			reader = vtkXMLPolyDataReader()
+			reader.SetFileName(filepath)
+			reader.Update()
+			data = reader.GetOutput()
+		elif extension == '.pvtp':
+			reader = vtkXMLPPolyDataReader()
+			reader.SetFileName(filepath)
+			reader.Update()
+			data = reader.GetOutput()
 		else:
 			return [], [], [], {}
 		
+		if data is None:
+			return [], [], [], {}
 		try:
-			from vtkmodules.vtkFiltersCore import vtkCellDataToPointData
-			converter = vtkCellDataToPointData()
-			converter.SetInputData(data)
-			converter.PassCellDataOn()
-			converter.Update()
-			converted_data = converter.GetOutput()
+			num_points = int(data.GetNumberOfPoints()) if hasattr(data, 'GetNumberOfPoints') else 0
+			num_cells = int(data.GetNumberOfCells()) if hasattr(data, 'GetNumberOfCells') else 0
+		except Exception:
+			num_points, num_cells = 0, 0
+		if num_points == 0:
+			return [], [], [], {}
+		
+		converted_data = data
+		try:
+			cell_data = data.GetCellData() if hasattr(data, 'GetCellData') else None
+			has_cell_arrays = bool(cell_data) and cell_data.GetNumberOfArrays() > 0
+			if num_cells > 0 and has_cell_arrays:
+				from vtkmodules.vtkFiltersCore import vtkCellDataToPointData
+				converter = vtkCellDataToPointData()
+				converter.SetInputData(data)
+				converter.PassCellDataOn()
+				converter.Update()
+				converted_data = converter.GetOutput() or data
 		except Exception:
 			converted_data = data
 		
@@ -146,7 +170,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		
 		faces = []
 		edges = []
-		for i in range(converted_data.GetNumberOfCells()):
+		for i in range(converted_data.GetNumberOfCells() if hasattr(converted_data, 'GetNumberOfCells') else 0):
 			cell = converted_data.GetCell(i)
 			cell_type = cell.GetCellType()
 			if cell_type in [VTK_TRIANGLE, VTK_QUAD]:
@@ -193,9 +217,9 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				for k in range(6):
 					faces.append([indices[k], indices[(k+1)%6], indices[((k+1)%6)+6], indices[k+6]])
 			elif cell_type in (VTK_LINE, VTK_POLYLINE):
-				num_points = cell.GetNumberOfPoints()
-				if num_points >= 2:
-					for j in range(num_points - 1):
+				num_points_cell = cell.GetNumberOfPoints()
+				if num_points_cell >= 2:
+					for j in range(num_points_cell - 1):
 						edges.append([cell.GetPointId(j), cell.GetPointId(j+1)])
 			elif cell_type == VTK_PENTAGONAL_PRISM:
 				indices = [cell.GetPointId(j) for j in range(10)]
@@ -207,8 +231,8 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				indices = [cell.GetPointId(j) for j in range(4)]
 				faces.append([indices[0], indices[1], indices[3], indices[2]])
 			elif cell_type == VTK_POLYGON:
-				num_points = cell.GetNumberOfPoints()
-				indices = [cell.GetPointId(j) for j in range(num_points)]
+				num_points_cell = cell.GetNumberOfPoints()
+				indices = [cell.GetPointId(j) for j in range(num_points_cell)]
 				faces.append(indices)
 			elif cell_type == VTK_POLYHEDRON:
 				num_faces = cell.GetNumberOfFaces()
@@ -222,8 +246,8 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				indices = [cell.GetPointId(j) for j in range(4)]
 				faces.append(indices)
 			elif cell_type == VTK_TRIANGLE_STRIP:
-				num_points = cell.GetNumberOfPoints()
-				for k in range(num_points - 2):
+				num_points_cell = cell.GetNumberOfPoints()
+				for k in range(num_points_cell - 2):
 					if k % 2 == 0:
 						faces.append([cell.GetPointId(k), cell.GetPointId(k+1), cell.GetPointId(k+2)])
 					else:
