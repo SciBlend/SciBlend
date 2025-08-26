@@ -4,6 +4,8 @@ from bpy.props import StringProperty, FloatProperty, EnumProperty, BoolProperty
 import numpy as np
 import os
 import math
+import time
+from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
 try:
@@ -70,7 +72,10 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
             if context.scene.x3d_import_settings.overwrite_scene:
                 clear_scene(context)
             material = self.create_material(variable_data, self.variable_name)
+            start_wall = time.time()
+            print(f"[NetCDF] Starting import of {time_steps} time step(s) at {datetime.now().strftime('%H:%M:%S')}")
             for frame in range(time_steps):
+                per_item_start = time.time()
                 data = variable_data[frame]
                 vertices = []
                 faces = []
@@ -133,6 +138,13 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
                 obj.data.materials.append(material)
                 if has_time:
                     self.setup_animation(obj, frame, time_steps, loop_count)
+                duration = time.time() - per_item_start
+                processed = frame + 1
+                elapsed = time.time() - start_wall
+                avg = (elapsed / processed) if processed > 0 else 0.0
+                remaining = max(0, time_steps - processed)
+                eta_dt = datetime.now() + timedelta(seconds=avg * remaining) if avg > 0 else datetime.now()
+                print(f"[NetCDF] Imported time step {processed}/{time_steps} in {duration:.2f}s. ETA ~ {eta_dt.strftime('%H:%M:%S')}")
             dataset.close()
             self.report({'INFO'}, "Imported NetCDF data successfully")
             return {'FINISHED'}

@@ -3,6 +3,8 @@ from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty, CollectionProperty
 import os
 import re
+import time
+from datetime import datetime, timedelta
 from .x3d_utils import import_x3d_minimal
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
@@ -56,8 +58,11 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
 
         imported_count = 0
         num_frames = len(x3d_files)
+        start_wall = time.time()
+        print(f"[X3D] Starting import of {num_frames} file(s) at {datetime.now().strftime('%H:%M:%S')}")
         for frame, x3d_file in enumerate(x3d_files, start=1):
             try:
+                per_item_start = time.time()
                 obj = import_x3d_minimal(x3d_file, name=os.path.basename(x3d_file), scale=scale_factor)
                 imported_objects = [obj]
             except Exception:
@@ -73,6 +78,13 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
                         occurrence = frame + (k * num_frames)
                         keyframe_visibility_single_frame(obj, occurrence)
                     enforce_constant_interpolation(obj)
+            duration = time.time() - per_item_start
+            processed = imported_count
+            elapsed = time.time() - start_wall
+            avg = (elapsed / processed) if processed > 0 else 0.0
+            remaining = max(0, num_frames - processed)
+            eta_dt = datetime.now() + timedelta(seconds=avg * remaining) if avg > 0 else datetime.now()
+            print(f"[X3D] Imported {os.path.basename(x3d_file)} ({processed}/{num_frames}) in {duration:.2f}s. ETA ~ {eta_dt.strftime('%H:%M:%S')}")
 
         bpy.context.scene.frame_start = 1
         bpy.context.scene.frame_end = max(1, (imported_count if num_frames > 0 else 1) * loop_count)

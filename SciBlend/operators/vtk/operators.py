@@ -5,6 +5,8 @@ from bpy.types import Operator
 import os
 import math
 import mathutils
+import time
+from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
 # VTK cell type ids
@@ -73,9 +75,12 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		num_frames = len(files_to_process)
 		context.scene.frame_start = self.start_frame_number
 		context.scene.frame_end = self.start_frame_number + (num_frames * loop_count) - 1 if num_frames > 0 else self.start_frame_number
+		start_wall = time.time()
+		print(f"[VTK] Starting import of {num_frames} file(s) at {datetime.now().strftime('%H:%M:%S')}")
 		for i, file_elem in enumerate(files_to_process):
 			filepath = os.path.join(self.directory, file_elem.name)
 			frame = self.start_frame_number + i
+			per_item_start = time.time()
 			vertices, edges, faces, point_data = self._read_grid(filepath)
 			if not vertices:
 				self.report({'ERROR'}, f"Failed to read file {file_elem.name}: No vertices found.")
@@ -93,6 +98,13 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			else:
 				obj.hide_viewport = False
 				obj.hide_render = False
+			duration = time.time() - per_item_start
+			processed = i + 1
+			elapsed = time.time() - start_wall
+			avg = (elapsed / processed) if processed > 0 else 0.0
+			remaining = max(0, num_frames - processed)
+			eta_dt = datetime.now() + timedelta(seconds=avg * remaining) if avg > 0 else datetime.now()
+			print(f"[VTK] Imported {os.path.basename(file_elem.name)} ({processed}/{num_frames}) in {duration:.2f}s. ETA ~ {eta_dt.strftime('%H:%M:%S')}")
 		return {'FINISHED'}
 
 	def _read_grid(self, filepath):
@@ -107,15 +119,16 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		
 		extension = os.path.splitext(filepath)[1].lower()
 		if extension == '.vtk':
-			reader = vtkUnstructuredGridReader()
+			from vtkmodules.vtkIOLegacy import vtkDataSetReader
+			reader = vtkDataSetReader()
 			reader.SetFileName(filepath)
 			reader.Update()
 			data = reader.GetOutput()
-			if data is None or data.GetNumberOfPoints() == 0:
-				reader = vtkPolyDataReader()
-				reader.SetFileName(filepath)
-				reader.Update()
-				data = reader.GetOutput()
+			if data is None or getattr(data, 'GetNumberOfPoints', lambda: 0)() == 0:
+				poly_reader = vtkPolyDataReader()
+				poly_reader.SetFileName(filepath)
+				poly_reader.Update()
+				data = poly_reader.GetOutput()
 		elif extension == '.vtu':
 			reader = vtkXMLUnstructuredGridReader()
 			reader.SetFileName(filepath)
