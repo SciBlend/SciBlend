@@ -85,6 +85,16 @@ Select format for mesh (default=1):
 Option: """).strip() or '1'
     valid_options = {'1': 'vtk', '2': 'ply', '3': 'stl', '4': 'vtp', '5': 'x3d'}
 
+elif data_type == "volume":
+    choice = input("""
+Select format for volume data (default=1):
+1: VTK (.vtk) - VTK Legacy Format
+2: VTI (.vti) - VTK ImageData
+3: VDB (.vdb) - OpenVDB (requires plugin)
+
+Option: """).strip() or '1'
+    valid_options = {'1': 'vtk', '2': 'vti', '3': 'vdb'}
+
 elif data_type == "multiblock":
     choice = input("""
 Select format for multiblock data (default=1):
@@ -163,6 +173,46 @@ def export_points(data, filepath):
                 return os.path.exists(filepath)
             except Exception as e:
                 print(f"Error with X3D export: {str(e)}")
+                return False
+        elif ext == '.vdb':
+            try:
+                def build_vdb_volume_source(src, vtk_data):
+                    classname = vtk_data.GetClassName()
+                    if "ImageData" in classname or "StructuredGrid" in classname:
+                        return src
+                    print("Input is not a regular volume; converting to voxel grid for VDB...")
+                    calc = Calculator(Input=src)
+                    calc.ResultArrayName = 'density'
+                    calc.Function = '1'
+                    resample = ResampleToImage(Input=calc)
+                    resample.UseInputBounds = 1
+                    dims_env = os.environ.get('PARAVIEW_VDB_DIMS', '').strip()
+                    try:
+                        if dims_env:
+                            parts = [int(x) for x in dims_env.replace(' ', '').split(',')]
+                            if len(parts) == 1:
+                                resample.SamplingDimensions = [parts[0], parts[0], parts[0]]
+                            elif len(parts) >= 3:
+                                resample.SamplingDimensions = [parts[0], parts[1], parts[2]]
+                            else:
+                                resample.SamplingDimensions = [128, 128, 128]
+                        else:
+                            resample.SamplingDimensions = [128, 128, 128]
+                    except Exception:
+                        print("Invalid PARAVIEW_VDB_DIMS; using 128^3")
+                        resample.SamplingDimensions = [128, 128, 128]
+                    try:
+                        resample.PointDataArrays = ['density']
+                    except Exception:
+                        pass
+                    return resample
+
+                src_for_vdb = build_vdb_volume_source(active_source, data)
+                SaveData(filepath, proxy=src_for_vdb)
+                return os.path.exists(filepath)
+            except Exception as e:
+                print("Error exporting to VDB. Ensure the OpenVDB plugin is enabled and input is a volume or convertible to volume.")
+                print(f"Details: {str(e)}")
                 return False
         else:
             SaveData(filepath, proxy=active_source)
