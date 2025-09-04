@@ -282,6 +282,8 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		for k in range(pd.GetNumberOfArrays()):
 			array = pd.GetArray(k)
 			base_name = array.GetName() or f"Array_{k}"
+			if isinstance(base_name, str) and base_name.strip().lower() == 'id':
+				base_name = 'id_attribute'
 			num_components = array.GetNumberOfComponents()
 			num_tuples = array.GetNumberOfTuples()
 			if num_components <= 1:
@@ -305,6 +307,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 							comp_name = str(comp_raw).strip()
 					if preferred is not None:
 						comp_name = preferred[comp]
+					# Heuristic fallback when component names are missing
 					if comp_name == "":
 						labels_3 = ['X', 'Y', 'Z']
 						labels_6 = ['XX', 'YY', 'ZZ', 'XY', 'YZ', 'XZ']
@@ -342,15 +345,18 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			if len(attr_values) != len(vertices) or len(attr_values) == 0:
 				continue
 			first_value = attr_values[0]
+			safe_attr_name = attr_name
+			if isinstance(safe_attr_name, str) and safe_attr_name.strip().lower() == 'id':
+				safe_attr_name = 'id_attribute'
 
 			if not isinstance(first_value, (tuple, list)):
-				float_attribute = mesh.attributes.new(name=attr_name, type='FLOAT', domain='POINT')
+				float_attribute = mesh.attributes.new(name=safe_attr_name, type='FLOAT', domain='POINT')
 				for i, value in enumerate(attr_values):
 					float_attribute.data[i].value = float(value)
 			else:
 				component_count = len(first_value)
 				for comp_index in range(component_count):
-					comp_attr = mesh.attributes.new(name=f"{attr_name}_{comp_index}", type='FLOAT', domain='POINT')
+					comp_attr = mesh.attributes.new(name=f"{safe_attr_name}_{comp_index}", type='FLOAT', domain='POINT')
 					for i, value in enumerate(attr_values):
 						comp_attr.data[i].value = float(value[comp_index])
 		return obj
