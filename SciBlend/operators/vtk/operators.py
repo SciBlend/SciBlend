@@ -6,6 +6,7 @@ import os
 import math
 import mathutils
 import time
+import json
 from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
 
@@ -51,6 +52,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 	scale_factor: FloatProperty(name="Scale Factor", default=1.0, min=0.01, max=100.0)
 	create_smooth_groups: BoolProperty(name="Create Smooth Groups", default=True)
 	height_scale: FloatProperty(name="Height Scale", default=1.0, min=0.01, max=100.0)
+	component_name_map_json: StringProperty(name="Component Name Map (JSON)", description="Optional JSON mapping of base array name to list of component names.", default="")
 
 	def _vtk_available(self) -> bool:
 		"""Return True if VTK modules can be imported in the current environment."""
@@ -270,30 +272,62 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 
 		point_data = {}
 		pd = converted_data.GetPointData()
+		# Optional component name map from UI (JSON)
+		# Example: {"Stress": ["XX", "YY", "ZZ", "XY", "YZ", "XZ"]}
+
+		try:
+			name_map = json.loads(getattr(self, 'component_name_map_json', '') or '{}')
+		except Exception:
+			name_map = {}
 		for k in range(pd.GetNumberOfArrays()):
 			array = pd.GetArray(k)
-			base_name = array.GetName()
+			base_name = array.GetName() or f"Array_{k}"
 			num_components = array.GetNumberOfComponents()
 			num_tuples = array.GetNumberOfTuples()
-			if num_components > 1:
-				if num_components == 3:
-					magnitudes = []
-					for j in range(num_tuples):
-						vector = array.GetTuple3(j)
-						magnitude = math.sqrt(sum(x*x for x in vector))
-						magnitudes.append(magnitude)
-					point_data[f"{base_name}_Magnitude"] = magnitudes
-					for comp in range(num_components):
-						component_values = []
-						for j in range(num_tuples):
-							component_values.append(array.GetComponent(j, comp))
-						suffix = ['X', 'Y', 'Z'][comp] if comp < 3 else str(comp)
-						point_data[f"{base_name}_{suffix}"] = component_values
-				else:
-					point_data[base_name] = [array.GetTuple(j) for j in range(num_tuples)]
-			else:
+			if num_components <= 1:
 				point_data[base_name] = [array.GetValue(j) for j in range(num_tuples)]
-
+			else:
+				preferred = None
+				if isinstance(name_map, dict) and base_name in name_map:
+					try:
+						cand = name_map[base_name]
+						if isinstance(cand, list) and len(cand) == num_components:
+							preferred = [str(x) for x in cand]
+					except Exception:
+						preferred = None
+				for comp in range(num_components):
+					comp_raw = array.GetComponentName(comp)
+					comp_name = ""
+					if comp_raw is not None:
+						try:
+							comp_name = (comp_raw.decode('utf-8', 'ignore') if isinstance(comp_raw, (bytes, bytearray)) else str(comp_raw)).strip()
+						except Exception:
+							comp_name = str(comp_raw).strip()
+					if preferred is not None:
+						comp_name = preferred[comp]
+					if comp_name == "":
+						labels_3 = ['X', 'Y', 'Z']
+						labels_6 = ['XX', 'YY', 'ZZ', 'XY', 'YZ', 'XZ']
+						labels_9 = ['XX', 'XY', 'XZ', 'YX', 'YY', 'YZ', 'ZX', 'ZY', 'ZZ']
+						if num_components == 3 and comp < 3:
+							comp_name = labels_3[comp]
+						elif num_components == 6 and comp < 6:
+							comp_name = labels_6[comp]
+						elif num_components == 9 and comp < 9:
+							comp_name = labels_9[comp]
+						else:
+							comp_name = str(comp)
+					comp_suffix = comp_name
+					component_values = []
+					for j in range(num_tuples):
+						component_values.append(array.GetComponent(j, comp))
+					point_data[f"{base_name}_{comp_suffix}"] = component_values
+				magnitude_values = []
+				for j in range(num_tuples):
+					tup = array.GetTuple(j)
+					magnitude_values.append(math.sqrt(sum(v*v for v in tup)))
+				point_data[f"{base_name}_Magnitude"] = magnitude_values
+		
 		return vertices, edges, faces, point_data
 
 	def _create_mesh(self, context, vertices, edges, faces, point_data, name):
@@ -304,10 +338,21 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		mesh.from_pydata(vertices, edges, faces)
 		mesh.update()
 		for attr_name, attr_values in point_data.items():
-			if len(attr_values) == len(vertices) and not isinstance(attr_values[0], (tuple, list)):
+
+			if len(attr_values) != len(vertices) or len(attr_values) == 0:
+				continue
+			first_value = attr_values[0]
+
+			if not isinstance(first_value, (tuple, list)):
 				float_attribute = mesh.attributes.new(name=attr_name, type='FLOAT', domain='POINT')
 				for i, value in enumerate(attr_values):
-					float_attribute.data[i].value = value
+					float_attribute.data[i].value = float(value)
+			else:
+				component_count = len(first_value)
+				for comp_index in range(component_count):
+					comp_attr = mesh.attributes.new(name=f"{attr_name}_{comp_index}", type='FLOAT', domain='POINT')
+					for i, value in enumerate(attr_values):
+						comp_attr.data[i].value = float(value[comp_index])
 		return obj
 
 __all__ = ["ImportVTKAnimationOperator"] 
