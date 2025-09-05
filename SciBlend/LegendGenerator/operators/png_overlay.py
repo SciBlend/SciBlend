@@ -93,17 +93,17 @@ class PNGOverlayOperator(Operator):
 
             render_layers.location = (0, 0)
             image_node.location = (0, 200)
-            scale_size_node.location = (200, 200)
-            scale_legend_node.location = (400, 200)
-            translate_node.location = (600, 200)
+            translate_node.location = (100, 200)
+            scale_size_node.location = (300, 200)
+            scale_legend_node.location = (500, 200)
             alpha_over.location = (800, 0)
             composite.location = (1000, 0)
 
             tree.links.new(render_layers.outputs["Image"], alpha_over.inputs[1])
-            tree.links.new(image_node.outputs["Image"], scale_size_node.inputs["Image"])
+            tree.links.new(image_node.outputs["Image"], translate_node.inputs["Image"])
+            tree.links.new(translate_node.outputs["Image"], scale_size_node.inputs["Image"])
             tree.links.new(scale_size_node.outputs["Image"], scale_legend_node.inputs["Image"])
-            tree.links.new(scale_legend_node.outputs["Image"], translate_node.inputs["Image"])
-            tree.links.new(translate_node.outputs["Image"], alpha_over.inputs[2])
+            tree.links.new(scale_legend_node.outputs["Image"], alpha_over.inputs[2])
             tree.links.new(alpha_over.outputs["Image"], composite.inputs["Image"])
 
             update_legend_position_in_compositor(context)
