@@ -83,7 +83,7 @@ class PNGOverlayOperator(Operator):
                 self.report({'ERROR'}, "Cannot load image")
                 return {'CANCELLED'}
 
-            scale_size_node.space = 'RENDER_SIZE' if settings.legend_scale_mode == 'RENDER' else 'SCENE_SIZE'
+            scale_size_node.space = 'RENDER_SIZE'
             scale_size_node.inputs[1].default_value = 1.0
             scale_size_node.inputs[2].default_value = 1.0
 

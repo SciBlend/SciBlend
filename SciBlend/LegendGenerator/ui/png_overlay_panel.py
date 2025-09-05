@@ -54,16 +54,9 @@ class PNGOverlayPanel(Panel):
         box = layout.box()
         box.label(text="Scale Legend", icon='FULLSCREEN_ENTER')
         row = box.row(align=True)
-        
+        row.prop(settings, "legend_scale_x", text="X")
         icon = 'LINKED' if settings.legend_scale_linked else 'UNLINKED'
         row.prop(settings, "legend_scale_linked", text="", icon=icon, toggle=True)
-        row.prop(settings, "legend_scale_mode", text="")
-        
-        row = box.row(align=True)
-        sub = row.row(align=True)
-        sub.active = not settings.legend_scale_linked or settings.legend_scale_linked
-        sub.prop(settings, "legend_scale_x", text="X")
-        
         sub = row.row(align=True)
         sub.active = not settings.legend_scale_linked
         sub.prop(settings, "legend_scale_y", text="Y")

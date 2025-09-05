@@ -48,12 +48,8 @@ def _update_legend_scale(self, context):
     settings = scene.legend_settings
 
     if settings.legend_scale_linked:
-        current_x = settings.legend_scale_x
-        current_y = settings.legend_scale_y
-        if self == settings.bl_rna.properties.get("legend_scale_x") and current_x != current_y:
-            settings.legend_scale_y = current_x
-        elif self == settings.bl_rna.properties.get("legend_scale_y") and current_y != current_x:
-            settings.legend_scale_x = current_y
+        if settings.legend_scale_y != settings.legend_scale_x:
+            settings.legend_scale_y = settings.legend_scale_x
 
     update_legend_scale_in_compositor(context)
     for area in context.screen.areas:
@@ -161,16 +157,6 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_scale,
     )
 
-    legend_scale_mode: EnumProperty(
-        name="Scale Mode",
-        items=[
-            ('SCENE_SIZE', "Scene Size", "Scale relative to scene size"),
-            ('RENDER_SIZE_FIT', "Render Size (Fit)", "Scale relative to render size, fit to render"),
-            ('RENDER_SIZE_CROP', "Render Size (Crop)", "Scale relative to render size, crop to render"),
-        ],
-        default='SCENE_SIZE',
-        update=_update_legend_scale_mode,
-    )
 
     colormap: EnumProperty(
         name="Colormap",
