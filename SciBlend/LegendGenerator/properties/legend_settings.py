@@ -17,6 +17,18 @@ from ..utils.compositor_utils import (
 )
 
 
+def _on_toggle_auto_from_shader(self, context):
+    scene = context.scene
+    settings = scene.legend_settings
+    if settings.auto_from_shader:
+        try:
+            from ..operators.choose_shader import update_legend_from_shader
+            obj = getattr(context, 'active_object', None)
+            update_legend_from_shader(scene, obj)
+        except Exception:
+            pass
+
+
 def update_nodes(self, context):
     """Synchronize the number of ColorValue items with `num_nodes`."""
     scene = context.scene
@@ -135,6 +147,13 @@ class LegendSettings(PropertyGroup):
         step=10,
         precision=1,
         update=_update_legend,
+    )
+
+    auto_from_shader: BoolProperty(
+        name="Auto from Shader",
+        description="When enabled, use selected object's shader to update the legend automatically",
+        default=False,
+        update=_on_toggle_auto_from_shader,
     )
 
     legend_scale_uniform: BoolProperty(

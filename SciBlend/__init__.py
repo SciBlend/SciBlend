@@ -58,9 +58,10 @@ from .operators.gob_operators import (
     GOBSettings
 )
 
-# Legend Generator guarded integration
+# Legend Geneator guarded integration
 LEGEND_AVAILABLE = False
 legend_classes = ()
+LEGEND_DEPS_HANDLER = None
 try:
     import matplotlib  # heavy dep check
     import PIL  # pillow
@@ -76,8 +77,12 @@ try:
     from .LegendGenerator.properties.color_value import ColorValue
     from .LegendGenerator.ui.png_overlay_panel import PNGOverlayPanel
     from .LegendGenerator.properties.legend_settings import LegendSettings
-    # Align panel category with SciBlend
     PNGOverlayPanel.bl_category = 'SciBlend'
+    try:
+        from .LegendGenerator import _depsgraph_handler as _LEGEND_DEPS
+        LEGEND_DEPS_HANDLER = _LEGEND_DEPS
+    except Exception:
+        LEGEND_DEPS_HANDLER = None
     LEGEND_AVAILABLE = True
     legend_classes = LEGEND_CLASSES
 except ImportError:
@@ -108,8 +113,6 @@ except ImportError:
         PNGOverlayOperatorStub,
         PNGOverlayPanelStub,
     )
-
-# Shader Generator guarded integration
 SHADER_AVAILABLE = False
 shader_classes = ()
 try:
@@ -179,7 +182,7 @@ try:
         ResizeSceneOperator,
         GridSettings,
     )
-    # Align Grid Generator panel category to SciBlend
+
     OBJECT_PT_GridGeneratorPanel.bl_category = 'SciBlend'
     GRID_AVAILABLE = True
     grid_classes = (
@@ -221,7 +224,6 @@ except ImportError:
         GridGeneratorPanelStub,
     )
 
-# Notes Generator guarded integration
 NOTES_AVAILABLE = False
 notes_classes = ()
 try:
@@ -316,7 +318,7 @@ except ImportError:
         ShapesGeneratorPanelStub,
     )
 
-# Compositor guarded integration
+
 COMPOSITOR_AVAILABLE = False
 compositor_classes = ()
 try:
@@ -557,9 +559,11 @@ def register():
     )
     bpy.types.Scene.gob_settings = bpy.props.PointerProperty(type=GOBSettings)
 
-    # Legend Generator now registers a pointer property `legend_settings` that groups all legend-related properties.
     if LEGEND_AVAILABLE:
         bpy.types.Scene.legend_settings = bpy.props.PointerProperty(type=LegendSettings)
+        if LEGEND_DEPS_HANDLER and LEGEND_DEPS_HANDLER not in bpy.app.handlers.depsgraph_update_post:
+            bpy.app.handlers.depsgraph_update_post.append(LEGEND_DEPS_HANDLER)
+            print("SciBlend: Legend depsgraph handler registered")
 
     # Shader Generator properties (only when available)
     if SHADER_AVAILABLE:
@@ -591,34 +595,31 @@ def unregister():
     if preview_collection:
         bpy.utils.previews.remove(preview_collection)
 
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.x3d_import_settings
-    del bpy.types.Scene.boolean_cutter_object
-    del bpy.types.Scene.new_cutter_mesh
-    del bpy.types.Scene.group_type
-    del bpy.types.Scene.gob_settings
+    if LEGEND_DEPS_HANDLER and LEGEND_DEPS_HANDLER in bpy.app.handlers.depsgraph_update_post:
+        try:
+            bpy.app.handlers.depsgraph_update_post.remove(LEGEND_DEPS_HANDLER)
+            print("SciBlend: Legend depsgraph handler unregistered")
+        except Exception:
+            pass
 
-    # Legend Generator now registers a pointer property `legend_settings` that groups all legend-related properties.
-    # Legend Generator cleans up its own pointer property during its unregister.
-    if LEGEND_AVAILABLE:
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
+
+    if hasattr(bpy.types.Scene, 'legend_settings'):
         del bpy.types.Scene.legend_settings
-
-    if SHADER_AVAILABLE:
+    if hasattr(bpy.types.Scene, 'custom_colorramp'):
         del bpy.types.Scene.custom_colorramp
-
-    if GRID_AVAILABLE:
+    if hasattr(bpy.types.Scene, 'grid_settings'):
         del bpy.types.Scene.grid_settings
-
-    if NOTES_AVAILABLE:
+    if hasattr(bpy.types.Scene, 'annotation_properties'):
         del bpy.types.Scene.annotation_properties
-
-    if SHAPES_AVAILABLE:
+    if hasattr(bpy.types.Scene, 'shapesgenerator_shapes'):
         del bpy.types.Scene.shapesgenerator_shapes
         del bpy.types.Scene.shapesgenerator_active_shape_index
-
-    if COMPOSITOR_AVAILABLE:
-        # CinematographySettings pointer handles its own unregister.
+    if hasattr(bpy.types.Scene, 'cinematography_settings'):
         if hasattr(bpy.types.Scene, "cinematography_settings"):
             del bpy.types.Scene.cinematography_settings
         if hasattr(bpy.types.Object, "camera_range"):
@@ -630,7 +631,7 @@ if __name__ == "__main__":
 bl_info = {
     "name": "SciBlend",
     "author": "José Marín",
-    "version": (1, 0),
+    "version": (1, 1, 2),
     "blender": (4, 5, 1),
     "location": "View3D > Sidebar > SciBlend",
     "description": "Scientific visualization tools for Blender",

@@ -44,6 +44,9 @@ class PNGOverlayPanel(Panel):
         col.prop(settings, "legend_name", text="Name", icon='FONT_DATA')
         col.prop(settings, "interpolation", text="Interpolation", icon='IPO_EASE_IN_OUT')
         col.prop(settings, "legend_orientation", text="Orientation", icon='ORIENTATION_VIEW')
+        row = box.row(align=True)
+        row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
+        row.operator("legend.choose_shader", text="Choose Shader", icon='SHADING_RENDERED')
 
         box = layout.box()
         box.label(text="Legend Dimension", icon='ARROW_LEFTRIGHT')

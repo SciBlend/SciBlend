@@ -8,6 +8,8 @@ from ..utils.gradient_bar import create_gradient_bar
 from ..utils.compositor_utils import update_legend_position_in_compositor, update_legend_scale_in_compositor
 from ..utils.color_utils import load_colormaps, interpolate_color
 
+_running_overlay = False
+
 class PNGOverlayOperator(Operator):
     bl_idname = "compositor.png_overlay"
     bl_label = "PNG Overlay Compositor"
@@ -15,6 +17,10 @@ class PNGOverlayOperator(Operator):
     resolution: IntProperty(name="Resolution", default=1920)
 
     def execute(self, context):
+        global _running_overlay
+        if _running_overlay:
+            return {'CANCELLED'}
+        _running_overlay = True
         scene = context.scene
         settings = scene.legend_settings
         
@@ -52,6 +58,7 @@ class PNGOverlayOperator(Operator):
 
         if not color_nodes:
             self.report({'ERROR'}, "No color nodes available")
+            _running_overlay = False
             return {'CANCELLED'}
 
         try:
@@ -82,6 +89,7 @@ class PNGOverlayOperator(Operator):
                 image_node.image = bpy.data.images.load(tmpname)
             except Exception:
                 self.report({'ERROR'}, "Cannot load image")
+                _running_overlay = False
                 return {'CANCELLED'}
 
             scale_size_node.space = 'RENDER_SIZE'
@@ -168,7 +176,9 @@ class PNGOverlayOperator(Operator):
             except Exception:
                 pass
 
+            _running_overlay = False
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Error generating the legend: {str(e)}")
+            _running_overlay = False
             return {'CANCELLED'}

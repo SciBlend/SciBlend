@@ -294,6 +294,12 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     
     mat = bpy.data.materials.new(name=f"Shader_Generator_{colormap_name}")
     mat.use_nodes = True
+    try:
+        mat["sciblend_colormap"] = colormap_name
+        mat["sciblend_attribute"] = attribute_name
+        mat["sciblend_normalization"] = normalization
+    except Exception:
+        pass
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
 
@@ -322,6 +328,11 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     node_colorramp = nodes.new(type='ShaderNodeValToRGB')
     node_colorramp.location = (-200, 0)
     node_colorramp.color_ramp.interpolation = interpolation
+    # Store colormap name as node label for easier discovery
+    try:
+        node_colorramp.label = str(colormap_name)
+    except Exception:
+        pass
 
     if colormap_name == "CUSTOM":
         colors = custom_colormap
