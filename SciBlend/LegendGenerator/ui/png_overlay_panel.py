@@ -78,6 +78,9 @@ class PNGOverlayPanel(Panel):
             row = box.row()
             row.prop(settings, "legend_font", text="Custom Font File")
         
+        row = box.row(align=True)
+        row.prop(settings, "legend_text_size_pt", text="Size (pt)")
+        
         row = box.row()
         row.prop(settings, "legend_text_color", text="Text Color")
 

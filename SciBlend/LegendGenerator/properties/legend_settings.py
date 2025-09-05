@@ -126,6 +126,17 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_position,
     )
 
+    legend_text_size_pt: FloatProperty(
+        name="Text Size (pt)",
+        description="Legend text size in points",
+        default=12.0,
+        min=6.0,
+        max=72.0,
+        step=10,
+        precision=1,
+        update=_update_legend,
+    )
+
     legend_scale_uniform: BoolProperty(
         name="Uniform Scale",
         default=True,

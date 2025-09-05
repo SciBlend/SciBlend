@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 from matplotlib import font_manager
 from PIL import Image
 
-def create_gradient_bar(width, height, color_nodes, labels, filename, legend_name, interpolation, orientation, font_type, font_path, text_color):
+def create_gradient_bar(width, height, color_nodes, labels, filename, legend_name, interpolation, orientation, font_type, font_path, text_color, text_size_pt):
     if orientation == 'HORIZONTAL':
         figsize = (width/100, height/100)
         orientation = 'horizontal'
@@ -23,22 +23,22 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
             font_name = font_prop.get_name()
             plt.rcParams['font.family'] = 'sans-serif'
             plt.rcParams['font.sans-serif'] = [font_name] + plt.rcParams['font.sans-serif']
-            print(f"Fuente personalizada cargada exitosamente: {font_path}")
+            print(f"Custom font loaded successfully: {font_path}")
         except Exception as e:
-            print(f"Error al cargar la fuente personalizada: {font_path}")
-            print(f"Detalles del error: {str(e)}")
-            print("Usando la fuente del sistema.")
+            print(f"Error loading custom font: {font_path}")
+            print(f"Error details: {str(e)}")
+            print("Using system font.")
     elif font_type == 'SYSTEM' and font_path:
         try:
             font_prop = font_manager.FontProperties(family=font_path)
             plt.rcParams['font.family'] = font_path
-            print(f"Fuente del sistema cargada exitosamente: {font_path}")
+            print(f"System font loaded successfully: {font_path}")
         except Exception as e:
-            print(f"Error al cargar la fuente del sistema: {font_path}")
-            print(f"Detalles del error: {str(e)}")
-            print("Usando la fuente por defecto.")
+            print(f"Error loading system font: {font_path}")
+            print(f"Error details: {str(e)}")
+            print("Using default font.")
     else:
-        print("No se proporcionó una fuente válida. Usando la fuente por defecto.")
+        print("No valid font provided. Using default font.")
 
     fig, ax = plt.subplots(figsize=figsize, dpi=100)
     ax.axis('off')
@@ -70,14 +70,31 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
                         pad=0.1, aspect=aspect, fraction=0.05)
     
     text_color_rgb = text_color[:3]
-    
+
     if font_prop:
+        try:
+            font_prop.set_size(text_size_pt)
+        except Exception:
+            pass
         cbar.set_label(legend_name, color=text_color_rgb, fontproperties=font_prop)
-        for label in cbar.ax.get_yticklabels():
+        ticklabels = cbar.ax.get_xticklabels() if orientation == 'horizontal' else cbar.ax.get_yticklabels()
+        for label in ticklabels:
             label.set_fontproperties(font_prop)
             label.set_color(text_color_rgb)
     else:
         cbar.set_label(legend_name, color=text_color_rgb)
+        label_obj = cbar.ax.xaxis.label if orientation == 'horizontal' else cbar.ax.yaxis.label
+        try:
+            label_obj.set_fontsize(text_size_pt)
+        except Exception:
+            pass
+        ticklabels = cbar.ax.get_xticklabels() if orientation == 'horizontal' else cbar.ax.get_yticklabels()
+        for label in ticklabels:
+            try:
+                label.set_fontsize(text_size_pt)
+            except Exception:
+                pass
+            label.set_color(text_color_rgb)
     
     cbar.set_ticks(np.linspace(0, 100, len(labels)))
     cbar.set_ticklabels(labels)
@@ -86,4 +103,4 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
     plt.savefig(filename, format='png', bbox_inches='tight', transparent=True, dpi=100)
     plt.close(fig)
 
-    print(f"Fuente utilizada: {plt.rcParams['font.family']}")
+    print(f"Font used: {plt.rcParams['font.family']}")

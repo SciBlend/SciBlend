@@ -63,7 +63,8 @@ class PNGOverlayOperator(Operator):
                                     labels, tmpname, settings.legend_name, 
                                     settings.interpolation, settings.legend_orientation,
                                     font_type, font_path,
-                                    settings.legend_text_color)  
+                                    settings.legend_text_color,
+                                    settings.legend_text_size_pt)  
             scene.use_nodes = True
             tree = scene.node_tree
 
