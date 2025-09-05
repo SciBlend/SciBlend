@@ -17,6 +17,18 @@ from ..utils.compositor_utils import (
 )
 
 
+def _on_toggle_auto_from_shader(self, context):
+    scene = context.scene
+    settings = scene.legend_settings
+    if settings.auto_from_shader:
+        try:
+            from ..operators.choose_shader import update_legend_from_shader
+            obj = getattr(context, 'active_object', None)
+            update_legend_from_shader(scene, obj)
+        except Exception:
+            pass
+
+
 def update_nodes(self, context):
     """Synchronize the number of ColorValue items with `num_nodes`."""
     scene = context.scene
@@ -48,12 +60,8 @@ def _update_legend_scale(self, context):
     settings = scene.legend_settings
 
     if settings.legend_scale_linked:
-        current_x = settings.legend_scale_x
-        current_y = settings.legend_scale_y
-        if self == settings.bl_rna.properties.get("legend_scale_x") and current_x != current_y:
-            settings.legend_scale_y = current_x
-        elif self == settings.bl_rna.properties.get("legend_scale_y") and current_y != current_x:
-            settings.legend_scale_x = current_y
+        if settings.legend_scale_y != settings.legend_scale_x:
+            settings.legend_scale_y = settings.legend_scale_x
 
     update_legend_scale_in_compositor(context)
     for area in context.screen.areas:
@@ -130,6 +138,24 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_position,
     )
 
+    legend_text_size_pt: FloatProperty(
+        name="Text Size (pt)",
+        description="Legend text size in points",
+        default=12.0,
+        min=6.0,
+        max=72.0,
+        step=10,
+        precision=1,
+        update=_update_legend,
+    )
+
+    auto_from_shader: BoolProperty(
+        name="Auto from Shader",
+        description="When enabled, use selected object's shader to update the legend automatically",
+        default=False,
+        update=_on_toggle_auto_from_shader,
+    )
+
     legend_scale_uniform: BoolProperty(
         name="Uniform Scale",
         default=True,
@@ -161,16 +187,6 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_scale,
     )
 
-    legend_scale_mode: EnumProperty(
-        name="Scale Mode",
-        items=[
-            ('SCENE_SIZE', "Scene Size", "Scale relative to scene size"),
-            ('RENDER_SIZE_FIT', "Render Size (Fit)", "Scale relative to render size, fit to render"),
-            ('RENDER_SIZE_CROP', "Render Size (Crop)", "Scale relative to render size, crop to render"),
-        ],
-        default='SCENE_SIZE',
-        update=_update_legend_scale_mode,
-    )
 
     colormap: EnumProperty(
         name="Colormap",

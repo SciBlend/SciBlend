@@ -54,10 +54,33 @@ addon_directory = os.path.dirname(os.path.realpath(__file__))
 colors_filepath = os.path.join(addon_directory, 'colors.json')
 COLORMAPS = load_colormaps_from_json(colors_filepath)
 
+
 def get_colormap_items(self, context):
     items = [(name, name, "") for name in COLORMAPS.keys()]
     if context.scene.custom_colorramp:
         items.append(("CUSTOM", "Custom", "Use custom ColorRamp"))
+    return items
+
+
+def get_attribute_items(self, context):
+    items = []
+    obj = getattr(context, 'active_object', None)
+    if obj and getattr(obj, 'type', None) == 'MESH':
+        try:
+            depsgraph = context.evaluated_depsgraph_get()
+            obj_eval = obj.evaluated_get(depsgraph)
+            mesh_eval = obj_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+            try:
+                for attr in mesh_eval.attributes:
+                    if attr.data_type in {'FLOAT', 'FLOAT_VECTOR'}:
+                        desc = f"Domain: {attr.domain}, Type: {attr.data_type}"
+                        items.append((attr.name, attr.name, desc))
+            finally:
+                obj_eval.to_mesh_clear()
+        except Exception:
+            pass
+    if not items:
+        items = [("Col", "Col", "Default attribute name")] 
     return items
 
 INTERPOLATION_OPTIONS = [
@@ -271,6 +294,12 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     
     mat = bpy.data.materials.new(name=f"Shader_Generator_{colormap_name}")
     mat.use_nodes = True
+    try:
+        mat["sciblend_colormap"] = colormap_name
+        mat["sciblend_attribute"] = attribute_name
+        mat["sciblend_normalization"] = normalization
+    except Exception:
+        pass
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
 
@@ -299,6 +328,11 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     node_colorramp = nodes.new(type='ShaderNodeValToRGB')
     node_colorramp.location = (-200, 0)
     node_colorramp.color_ramp.interpolation = interpolation
+    # Store colormap name as node label for easier discovery
+    try:
+        node_colorramp.label = str(colormap_name)
+    except Exception:
+        pass
 
     if colormap_name == "CUSTOM":
         colors = custom_colormap
@@ -387,16 +421,23 @@ class MATERIAL_OT_create_shader(Operator):
         default='AUTO'
     )
 
-    attribute_name: StringProperty(
+    attribute_name: EnumProperty(
         name="Attribute Name",
-        description="Name of the attribute to map",
-        default="Col"
+        description="Choose the attribute to map",
+        items=get_attribute_items,
     )
 
     def execute(self, context):
         active_obj = context.active_object
+        try:
+            selected_attr = getattr(self, 'attribute_name', None)
+        except Exception:
+            selected_attr = None
+        if not selected_attr:
+            items = get_attribute_items(self, context)
+            selected_attr = items[0][0] if items else "Col"
         if active_obj and active_obj.type == 'MESH':
-            color_range = get_color_range(active_obj, self.attribute_name, self.normalization)
+            color_range = get_color_range(active_obj, selected_attr, self.normalization)
         else:
             color_range = None
 
@@ -411,7 +452,7 @@ class MATERIAL_OT_create_shader(Operator):
             custom_colormap,
             color_range=color_range,
             normalization=self.normalization,
-            attribute_name=self.attribute_name
+            attribute_name=selected_attr
         )
 
         mat.name = self.material_name

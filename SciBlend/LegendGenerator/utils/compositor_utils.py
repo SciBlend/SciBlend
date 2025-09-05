@@ -45,20 +45,9 @@ def update_legend_scale_in_compositor(context):
     if scale_size_node is None or scale_legend_node is None:
         return
 
-    if settings.legend_scale_mode == 'SCENE_SIZE':
-        new_space = 'SCENE_SIZE'
-    else:
-        new_space = 'RENDER_SIZE'
-    
-    if scale_size_node.space != new_space:
-        scale_size_node.space = new_space
-
-    if settings.legend_scale_mode == 'RENDER_SIZE_FIT':
-        scale_size_node.frame_method = 'FIT'
-    elif settings.legend_scale_mode == 'RENDER_SIZE_CROP':
-        scale_size_node.frame_method = 'CROP'
-    else:  
-        scale_size_node.frame_method = 'STRETCH'
+    if scale_size_node.space != 'RENDER_SIZE':
+        scale_size_node.space = 'RENDER_SIZE'
+    scale_size_node.frame_method = 'FIT'
 
     scale_x = settings.legend_scale_x
     scale_y = settings.legend_scale_y if not settings.legend_scale_linked else settings.legend_scale_x

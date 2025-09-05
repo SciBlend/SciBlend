@@ -44,6 +44,9 @@ class PNGOverlayPanel(Panel):
         col.prop(settings, "legend_name", text="Name", icon='FONT_DATA')
         col.prop(settings, "interpolation", text="Interpolation", icon='IPO_EASE_IN_OUT')
         col.prop(settings, "legend_orientation", text="Orientation", icon='ORIENTATION_VIEW')
+        row = box.row(align=True)
+        row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
+        row.operator("legend.choose_shader", text="Choose Shader", icon='SHADING_RENDERED')
 
         box = layout.box()
         box.label(text="Legend Dimension", icon='ARROW_LEFTRIGHT')
@@ -54,16 +57,9 @@ class PNGOverlayPanel(Panel):
         box = layout.box()
         box.label(text="Scale Legend", icon='FULLSCREEN_ENTER')
         row = box.row(align=True)
-        
+        row.prop(settings, "legend_scale_x", text="X")
         icon = 'LINKED' if settings.legend_scale_linked else 'UNLINKED'
         row.prop(settings, "legend_scale_linked", text="", icon=icon, toggle=True)
-        row.prop(settings, "legend_scale_mode", text="")
-        
-        row = box.row(align=True)
-        sub = row.row(align=True)
-        sub.active = not settings.legend_scale_linked or settings.legend_scale_linked
-        sub.prop(settings, "legend_scale_x", text="X")
-        
         sub = row.row(align=True)
         sub.active = not settings.legend_scale_linked
         sub.prop(settings, "legend_scale_y", text="Y")
@@ -84,6 +80,9 @@ class PNGOverlayPanel(Panel):
         else:
             row = box.row()
             row.prop(settings, "legend_font", text="Custom Font File")
+        
+        row = box.row(align=True)
+        row.prop(settings, "legend_text_size_pt", text="Size (pt)")
         
         row = box.row()
         row.prop(settings, "legend_text_color", text="Text Color")
