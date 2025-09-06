@@ -381,18 +381,25 @@ FILTERS_AVAILABLE = False
 filters_classes = ()
 try:
     from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+    from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
     from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
     from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
     from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
+    from .FiltersGenerator.operators.volume_import import FILTERS_OT_volume_import_vdb_sequence
+    from .FiltersGenerator.operators.volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
     FILTERS_AVAILABLE = True
     filters_classes = (
         FiltersEmitterSettings,
+        VolumeRenderingSettings,
         FILTERS_OT_create_emitter,
         FILTERS_OT_place_emitter,
         FILTERS_OT_generate_streamline,
+        FILTERS_OT_volume_import_vdb_sequence,
+        FILTERS_OT_volume_update_material,
+        FILTERS_OT_volume_compute_range,
         FILTERSGENERATOR_PT_main_panel,
         FILTERSGENERATOR_PT_stream_tracers,
         FILTERSGENERATOR_PT_volume_filter,
@@ -626,7 +633,9 @@ def register():
 
     if FILTERS_AVAILABLE:
         from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+        from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
         bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
+        bpy.types.Scene.filters_volume_settings = bpy.props.PointerProperty(type=VolumeRenderingSettings)
 
 
 def unregister():
@@ -665,6 +674,8 @@ def unregister():
             del bpy.types.Object.camera_range
     if hasattr(bpy.types.Scene, 'filters_emitter_settings'):
         del bpy.types.Scene.filters_emitter_settings
+    if hasattr(bpy.types.Scene, 'filters_volume_settings'):
+        del bpy.types.Scene.filters_volume_settings
 
 if __name__ == "__main__":
     register()

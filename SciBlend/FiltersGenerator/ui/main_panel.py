@@ -63,4 +63,32 @@ class FILTERSGENERATOR_PT_volume_filter(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Coming soon", icon='INFO') 
+        s = getattr(context.scene, "filters_volume_settings", None)
+        if not s:
+            layout.label(text="Volume settings unavailable", icon='ERROR')
+            return
+
+        layout.operator("filters.volume_import_vdb_sequence", text="Import VDB Sequence", icon='FILE_FOLDER')
+        layout.prop(s, "volume_object", text="Volume")
+        layout.prop(s, "grid_name", text="Grid")
+        layout.prop(s, "colormap", text="Colormap")
+
+        box = layout.box()
+        box.label(text="Range & Density", icon='SEQ_LUMA_WAVEFORM')
+        row = box.row(align=True)
+        row.prop(s, "auto_range")
+        row.operator("filters.volume_compute_range", text="Compute Range", icon='IPO_CONSTANT')
+        col = box.column(align=True)
+        col.prop(s, "from_min")
+        col.prop(s, "from_max")
+        col.prop(s, "density_scale")
+        col.prop(s, "anisotropy")
+        col.prop(s, "emission_strength")
+
+        box = layout.box()
+        box.label(text="Slice", icon='MOD_SOLIDIFY')
+        col = box.column(align=True)
+        col.prop(s, "slice_object", text="Slicing Object")
+        col.prop(s, "slice_invert")
+
+        layout.operator("filters.volume_update_material", text="Update Material", icon='SHADING_RENDERED') 
