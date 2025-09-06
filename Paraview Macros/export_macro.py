@@ -90,8 +90,7 @@ elif data_type == "volume":
 Select format for volume data (default=1):
 1: VTK (.vtk) - VTK Legacy Format
 2: VTI (.vti) - VTK ImageData
-3: VDB (.vdb) - OpenVDB (requires plugin)
-
+3: VDB (.vdb) - OpenVDB
 Option: """).strip() or '1'
     valid_options = {'1': 'vtk', '2': 'vti', '3': 'vdb'}
 
@@ -160,7 +159,7 @@ def export_to_csv(data, filepath):
         print(f"Error exporting to CSV: {str(e)}")
         return False
 
-def export_points(data, filepath):
+def export_points(data, filepath, current_time):
     try:
         ext = os.path.splitext(filepath)[1].lower()
         
@@ -180,11 +179,8 @@ def export_points(data, filepath):
                     classname = vtk_data.GetClassName()
                     if "ImageData" in classname or "StructuredGrid" in classname:
                         return src
-                    print("Input is not a regular volume; converting to voxel grid for VDB...")
-                    calc = Calculator(Input=src)
-                    calc.ResultArrayName = 'density'
-                    calc.Function = '1'
-                    resample = ResampleToImage(Input=calc)
+                    print("Input is not a regular volume; resampling to ImageData for VDB export...")
+                    resample = ResampleToImage(Input=src)
                     resample.UseInputBounds = 1
                     dims_env = os.environ.get('PARAVIEW_VDB_DIMS', '').strip()
                     try:
@@ -201,13 +197,11 @@ def export_points(data, filepath):
                     except Exception:
                         print("Invalid PARAVIEW_VDB_DIMS; using 128^3")
                         resample.SamplingDimensions = [128, 128, 128]
-                    try:
-                        resample.PointDataArrays = ['density']
-                    except Exception:
-                        pass
                     return resample
 
                 src_for_vdb = build_vdb_volume_source(active_source, data)
+                UpdatePipeline(time=current_time, proxy=active_source)
+                UpdatePipeline(time=current_time, proxy=src_for_vdb)
                 SaveData(filepath, proxy=src_for_vdb)
                 return os.path.exists(filepath)
             except Exception as e:
@@ -215,6 +209,7 @@ def export_points(data, filepath):
                 print(f"Details: {str(e)}")
                 return False
         else:
+            UpdatePipeline(time=current_time, proxy=active_source)
             SaveData(filepath, proxy=active_source)
             success = os.path.exists(filepath)
             if not success:
@@ -229,17 +224,24 @@ def export_points(data, filepath):
 
 for frame in range(start, end + 1):
     if total_frames > 1:
-        scene.TimeKeeper.Time = timesteps[frame - 1]
-        scene.AnimationTime = timesteps[frame - 1]
-        view.Update()
-        Render()
+        current_time = timesteps[frame - 1]
+        scene.TimeKeeper.Time = current_time
+        scene.AnimationTime = current_time
+    else:
+        current_time = timesteps[0]
+    print(f"Setting pipeline time to: {current_time}")
+    UpdatePipeline(time=current_time, proxy=active_source)
+    view.Update()
+    view.ViewTime = current_time
+    Render()
     
     filename = f"data_frame_{frame:04d}.{ext}"
     filepath = os.path.join(folder_path, filename)
     
     print(f"\nExporting frame {frame} to {filepath}")
     
-    if export_points(vtk_data, filepath):
+    vtk_data_frame = servermanager.Fetch(active_source)
+    if export_points(vtk_data_frame, filepath, current_time):
         print(f"✓ Frame {frame} exported successfully")
         success_count += 1
     else:
@@ -247,6 +249,7 @@ for frame in range(start, end + 1):
         if ext != 'vtk':
             fallback_path = os.path.join(folder_path, f"data_frame_{frame:04d}.vtk")
             print(f"Trying alternative format (.vtk): {fallback_path}")
+            UpdatePipeline(time=current_time, proxy=active_source)
             SaveData(fallback_path, proxy=active_source)
             if os.path.exists(fallback_path):
                 print(f"✓ Frame {frame} exported with alternative format")
