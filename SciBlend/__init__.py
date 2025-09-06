@@ -377,6 +377,41 @@ except ImportError:
 
     compositor_classes = (CompositorOperatorStub, CompositorPanelStub)
 
+FILTERS_AVAILABLE = False
+filters_classes = ()
+try:
+    from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+    from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
+    from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
+    from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
+    FILTERS_AVAILABLE = True
+    filters_classes = (
+        FiltersEmitterSettings,
+        FILTERS_OT_create_emitter,
+        FILTERS_OT_place_emitter,
+        FILTERS_OT_generate_streamline,
+        FILTERSGENERATOR_PT_main_panel,
+        FILTERSGENERATOR_PT_stream_tracers,
+        FILTERSGENERATOR_PT_volume_filter,
+    )
+except ImportError:
+    class FiltersGeneratorPanelStub(bpy.types.Panel):
+        """Stub panel for Filters Generator shown when required modules are missing."""
+        bl_label = "Filters Generator"
+        bl_idname = "OBJECT_PT_sciblend_filters_generator"
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'UI'
+        bl_category = 'SciBlend Advanced Core'
+        def draw(self, context):
+            box = self.layout.box()
+            box.label(text="Filters Generator unavailable", icon='ERROR')
+            box.label(text="Missing internal modules")
+
+    filters_classes = (FiltersGeneratorPanelStub,)
+
 preview_collection = None
 
 class X3DImportSettings(bpy.types.PropertyGroup):
@@ -397,7 +432,7 @@ class X3DImportSettings(bpy.types.PropertyGroup):
             ('-Y', "-Y", ""),
             ('-Z', "-Z", ""),
         ],
-        default='Y',
+        default='-Z',
     )
     axis_up: bpy.props.EnumProperty(
         name="Up",
@@ -409,7 +444,7 @@ class X3DImportSettings(bpy.types.PropertyGroup):
             ('-Y', "-Y", ""),
             ('-Z', "-Z", ""),
         ],
-        default='Z',
+        default='Y',
     )
     overwrite_scene: bpy.props.BoolProperty(
         name="Overwrite Scene",
@@ -530,7 +565,7 @@ classes = (
     GOB_OT_refresh_from_paraview,
     X3DImportSettings,
     SciBlendPanel,
-) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes
+) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes + filters_classes
 
 def register():
     global preview_collection
@@ -589,6 +624,10 @@ def register():
         # Ensure camera objects have a camera_range property available for UI/operators
         bpy.types.Object.camera_range = bpy.props.PointerProperty(type=CameraRangeProperties)
 
+    if FILTERS_AVAILABLE:
+        from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+        bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
+
 
 def unregister():
     global preview_collection
@@ -624,6 +663,8 @@ def unregister():
             del bpy.types.Scene.cinematography_settings
         if hasattr(bpy.types.Object, "camera_range"):
             del bpy.types.Object.camera_range
+    if hasattr(bpy.types.Scene, 'filters_emitter_settings'):
+        del bpy.types.Scene.filters_emitter_settings
 
 if __name__ == "__main__":
     register()
