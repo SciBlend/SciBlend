@@ -78,6 +78,7 @@ try:
     from .LegendGenerator.ui.png_overlay_panel import PNGOverlayPanel
     from .LegendGenerator.properties.legend_settings import LegendSettings
     PNGOverlayPanel.bl_category = 'SciBlend'
+    PNGOverlayPanel.bl_options = {'DEFAULT_CLOSED'}
     try:
         from .LegendGenerator import _depsgraph_handler as _LEGEND_DEPS
         LEGEND_DEPS_HANDLER = _LEGEND_DEPS
@@ -93,6 +94,7 @@ except ImportError:
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'UI'
         bl_category = 'SciBlend Advanced Core'
+        bl_options = {'DEFAULT_CLOSED'}
 
         def draw(self, context):
             layout = self.layout
@@ -128,6 +130,7 @@ try:
     )
     # Align Shader Generator panel category to SciBlend
     MATERIAL_PT_shader_generator.bl_category = 'SciBlend'
+    MATERIAL_PT_shader_generator.bl_options = {'DEFAULT_CLOSED'}
     SHADER_AVAILABLE = True
     shader_classes = (
         ColorRampColor,
@@ -147,6 +150,7 @@ except ImportError:
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'UI'
         bl_category = 'SciBlend Advanced Core'
+        bl_options = {'DEFAULT_CLOSED'}
 
         def draw(self, context):
             layout = self.layout
@@ -184,6 +188,7 @@ try:
     )
 
     OBJECT_PT_GridGeneratorPanel.bl_category = 'SciBlend'
+    OBJECT_PT_GridGeneratorPanel.bl_options = {'DEFAULT_CLOSED'}
     GRID_AVAILABLE = True
     grid_classes = (
         OBJECT_PT_GridGeneratorPanel,
@@ -203,6 +208,7 @@ except ImportError:
         bl_space_type = 'VIEW_3D'
         bl_region_type = 'UI'
         bl_category = 'SciBlend Advanced Core'
+        bl_options = {'DEFAULT_CLOSED'}
 
         def draw(self, context):
             layout = self.layout
@@ -232,6 +238,7 @@ try:
     from .NotesGenerator.properties.annotation_properties import AnnotationProperties
     # Align Notes Generator panel category to SciBlend
     NOTESGENERATOR_PT_main_panel.bl_category = 'SciBlend'
+    NOTESGENERATOR_PT_main_panel.bl_options = {'DEFAULT_CLOSED'}
     NOTES_AVAILABLE = True
     notes_classes = (
         NOTESGENERATOR_PT_main_panel,
@@ -282,6 +289,7 @@ try:
     )
     # Align Shapes Generator panel to SciBlend category
     SHAPESGENERATOR_PT_Panel.bl_category = 'SciBlend'
+    SHAPESGENERATOR_PT_Panel.bl_options = {'DEFAULT_CLOSED'}
     SHAPES_AVAILABLE = True
     shapes_classes = (
         ShapesGeneratorItem,
@@ -341,8 +349,9 @@ try:
         update_camera_list_index,
     )
     from .Compositor.cinematography.render_settings_group import CinematographySettings
-    # Align panel to SciBlend category
+
     COMPOSITOR_PT_panel.bl_category = 'SciBlend'
+    COMPOSITOR_PT_panel.bl_options = {'DEFAULT_CLOSED'}
     COMPOSITOR_AVAILABLE = True
     compositor_classes = (
         COMPOSITOR_PT_panel,
@@ -434,6 +443,7 @@ class SciBlendPanel(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = 'SciBlend'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
