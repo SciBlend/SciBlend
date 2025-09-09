@@ -70,6 +70,12 @@ def update_colormap(self, context):
         
         settings.num_nodes = subdivisions
 
+    try:
+        if getattr(settings, 'legend_enabled', True):
+            bpy.ops.compositor.png_overlay()
+    except Exception:
+        pass
+
 
 def interpolate_color(colormap, pos):
     if not colormap:

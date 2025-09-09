@@ -6,7 +6,24 @@ from matplotlib import font_manager
 from PIL import Image
 
 
-def create_gradient_bar(width, height, color_nodes, labels, filename, legend_name, interpolation, orientation, font_type, font_path, text_color, text_size_pt):
+def create_gradient_bar(width, height, color_nodes, labels, filename, legend_name, interpolation, orientation, font_type, font_path, text_color, text_size_pt, label_padding, label_offset_pct):
+    """Create and save a colorbar image.
+
+    Parameters:
+    - width, height: Pixel dimensions of the generated image.
+    - color_nodes: List of (position, (r,g,b)) tuples in range [0,1].
+    - labels: Tick labels to display along the colorbar range.
+    - filename: Output PNG path.
+    - legend_name: Label text for the colorbar.
+    - interpolation: One of LINEAR, STEP, CUBIC, NEAREST.
+    - orientation: 'HORIZONTAL' or 'VERTICAL'.
+    - font_type: 'SYSTEM' or 'CUSTOM'.
+    - font_path: Font family name (SYSTEM) or file path (CUSTOM).
+    - text_color: RGBA/ RGB color, values in [0,1].
+    - text_size_pt: Label and ticks size in points.
+    - label_padding: Space between colorbar and label, in points.
+    - label_offset_pct: Position of the label along axis [0..100].
+    """
     if orientation == 'HORIZONTAL':
         figsize = (width/100, height/100)
         orientation = 'horizontal'
@@ -68,13 +85,13 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
                 font_prop.set_size(text_size_pt)
             except Exception:
                 pass
-            cbar.set_label(legend_name, color=text_color_rgb, fontproperties=font_prop)
+            cbar.set_label(legend_name, color=text_color_rgb, fontproperties=font_prop, labelpad=label_padding)
             ticklabels = cbar.ax.get_xticklabels() if orientation == 'horizontal' else cbar.ax.get_yticklabels()
             for label in ticklabels:
                 label.set_fontproperties(font_prop)
                 label.set_color(text_color_rgb)
         else:
-            cbar.set_label(legend_name, color=text_color_rgb)
+            cbar.set_label(legend_name, color=text_color_rgb, labelpad=label_padding)
             label_obj = cbar.ax.xaxis.label if orientation == 'horizontal' else cbar.ax.yaxis.label
             try:
                 label_obj.set_fontsize(text_size_pt)
@@ -87,6 +104,14 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
                 except Exception:
                     pass
                 label.set_color(text_color_rgb)
+
+        pos_frac = max(0.0, min(1.0, (label_offset_pct or 0.0) / 100.0))
+        if orientation == 'horizontal':
+            cbar.ax.xaxis.label.set_ha('center')
+            cbar.ax.xaxis.label.set_x(pos_frac)
+        else:
+            cbar.ax.yaxis.label.set_va('center')
+            cbar.ax.yaxis.label.set_y(pos_frac)
 
         cbar.set_ticks(np.linspace(0, 100, len(labels)))
         cbar.set_ticklabels(labels)

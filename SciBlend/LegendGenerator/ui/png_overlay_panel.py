@@ -90,6 +90,12 @@ class PNGOverlayPanel(Panel):
         row = box.row()
         row.prop(settings, "legend_text_color", text="Text Color")
 
+        row = box.row(align=True)
+        row.prop(settings, "legend_label_padding", text="Label Padding")
+
+        row = box.row(align=True)
+        row.prop(settings, "legend_label_offset_pct", text="Label Offset (%)")
+        
         row = layout.row()
         row.scale_y = 1.5
         row.enabled = settings.legend_enabled
