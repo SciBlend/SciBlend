@@ -85,6 +85,13 @@ def _update_legend_scale_mode(self, context):
 def _update_legend(self, context):
     """Generic update to refresh compositor when legend attributes change."""
     update_legend_scale_in_compositor(context)
+    try:
+        sc = getattr(bpy.context, 'scene', None)
+        settings = getattr(sc, 'legend_settings', None) if sc else None
+        if settings and getattr(settings, 'legend_enabled', True):
+            bpy.ops.compositor.png_overlay()
+    except Exception:
+        pass
 
 
 def _update_legend_enabled(self, context):
@@ -179,6 +186,7 @@ class LegendSettings(PropertyGroup):
             ('NEAREST', "Nearest", "Nearest neighbor interpolation"),
         ],
         default='LINEAR',
+        update=_update_legend,
     )
 
     legend_orientation: EnumProperty(
