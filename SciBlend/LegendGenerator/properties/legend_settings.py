@@ -101,6 +101,48 @@ def _get_system_fonts(self, context):
     return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
 
 
+def _on_change_orientation(self, context):
+    """Set default legend parameters based on the selected orientation.
+
+    Vertical:
+    - Dimensions: 1920x1080
+    - Scale: 0.85x (X and Y)
+    - Position: X 40.00, Y 0
+    - Font size: 30.0 pt
+
+    Horizontal:
+    - Dimensions: 1920x1080
+    - Scale: 0.6x (X and Y)
+    - Position: X 0, Y -15.00
+    - Font size: 25.0 pt
+    """
+    scene = context.scene
+    settings = scene.legend_settings
+
+    if settings.legend_orientation == 'VERTICAL':
+        settings.legend_width = 1920
+        settings.legend_height = 1080
+        settings.legend_scale_x = 0.85
+        settings.legend_scale_y = 0.85
+        settings.legend_position_x = 40.0
+        settings.legend_position_y = 0.0
+        settings.legend_text_size_pt = 30.0
+    else:
+        settings.legend_width = 1920
+        settings.legend_height = 1080
+        settings.legend_scale_x = 0.6
+        settings.legend_scale_y = 0.6
+        settings.legend_position_x = 0.0
+        settings.legend_position_y = -15.0
+        settings.legend_text_size_pt = 25.0
+
+    try:
+        if getattr(settings, 'legend_enabled', True):
+            bpy.ops.compositor.png_overlay()
+    except Exception:
+        pass
+
+
 class LegendSettings(PropertyGroup):
     """Grouped settings for Legend Generator to avoid stray Scene properties."""
 
@@ -146,6 +188,7 @@ class LegendSettings(PropertyGroup):
             ('VERTICAL', "Vertical", "Vertical orientation"),
         ],
         default='HORIZONTAL',
+        update=_on_change_orientation,
     )
 
     legend_position_x: FloatProperty(
@@ -156,14 +199,14 @@ class LegendSettings(PropertyGroup):
 
     legend_position_y: FloatProperty(
         name="Y Position",
-        default=0.0,
+        default=-15.0,
         update=_update_legend_position,
     )
 
     legend_text_size_pt: FloatProperty(
         name="Text Size (pt)",
         description="Legend text size in points",
-        default=12.0,
+        default=25.0,
         min=6.0,
         max=72.0,
         step=10,
@@ -187,7 +230,7 @@ class LegendSettings(PropertyGroup):
     legend_scale_x: FloatProperty(
         name="X Scale",
         description="Scale of the legend in X direction",
-        default=1.0,
+        default=0.6,
         min=0.1,
         max=10.0,
         update=_update_legend_scale,
@@ -196,7 +239,7 @@ class LegendSettings(PropertyGroup):
     legend_scale_y: FloatProperty(
         name="Y Scale",
         description="Scale of the legend in Y direction",
-        default=1.0,
+        default=0.6,
         min=0.1,
         max=10.0,
         update=_update_legend_scale,
@@ -244,14 +287,14 @@ class LegendSettings(PropertyGroup):
     legend_width: IntProperty(
         name="Width",
         description="Width of the legend in pixels",
-        default=200,
+        default=1920,
         min=1,
     )
 
     legend_height: IntProperty(
         name="Height",
         description="Height of the legend in pixels",
-        default=600,
+        default=1080,
         min=1,
     )
 
