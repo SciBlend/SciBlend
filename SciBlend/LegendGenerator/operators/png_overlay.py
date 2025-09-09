@@ -75,7 +75,9 @@ class PNGOverlayOperator(Operator):
                                     settings.interpolation, settings.legend_orientation,
                                     font_type, font_path,
                                     settings.legend_text_color,
-                                    settings.legend_text_size_pt)  
+                                    settings.legend_text_size_pt,
+                                    settings.legend_label_padding,
+                                    settings.legend_label_offset_pct)  
             scene.use_nodes = True
             tree = scene.node_tree
 
@@ -117,7 +119,7 @@ class PNGOverlayOperator(Operator):
             tree.links.new(translate_node.outputs["Image"], scale_size_node.inputs["Image"])
             tree.links.new(scale_size_node.outputs["Image"], scale_legend_node.inputs["Image"])
             tree.links.new(scale_legend_node.outputs["Image"], alpha_over.inputs[2])
-            tree.links.new(alpha_over.outputs["Image"], composite.inputs["Image"])
+            tree.links.new(alpha_over.outputs["Image"], composite.inputs["Image"]) 
 
             update_legend_position_in_compositor(context)
             update_legend_scale_in_compositor(context)
