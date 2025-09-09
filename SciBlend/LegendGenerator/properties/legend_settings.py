@@ -1,3 +1,4 @@
+import bpy
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -18,6 +19,7 @@ from ..utils.compositor_utils import (
 
 
 def _on_toggle_auto_from_shader(self, context):
+    """Handle enabling of automatic legend updates from the active object's shader and trigger an initial overlay render."""
     scene = context.scene
     settings = scene.legend_settings
     if settings.auto_from_shader:
@@ -25,6 +27,10 @@ def _on_toggle_auto_from_shader(self, context):
             from ..operators.choose_shader import update_legend_from_shader
             obj = getattr(context, 'active_object', None)
             update_legend_from_shader(scene, obj)
+        except Exception:
+            pass
+        try:
+            bpy.ops.compositor.png_overlay()
         except Exception:
             pass
 
