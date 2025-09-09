@@ -518,7 +518,8 @@ class MATERIAL_OT_create_shader(Operator):
                 except Exception:
                     pass
                 try:
-                    bpy.ops.compositor.png_overlay()
+                    if getattr(settings, 'legend_enabled', True):
+                        bpy.ops.compositor.png_overlay()
                 except Exception:
                     pass
         except Exception:

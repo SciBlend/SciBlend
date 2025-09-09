@@ -87,6 +87,15 @@ def _update_legend(self, context):
     update_legend_scale_in_compositor(context)
 
 
+def _update_legend_enabled(self, context):
+    """Toggle compositor overlay visibility based on the legend_enabled setting."""
+    try:
+        from ..utils.compositor_utils import set_legend_visibility
+        set_legend_visibility(context, bool(self.legend_enabled))
+    except Exception:
+        pass
+
+
 def _get_system_fonts(self, context):
     """Enumerate system fonts using matplotlib's font manager."""
     return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
@@ -97,6 +106,13 @@ class LegendSettings(PropertyGroup):
 
     colors_values: CollectionProperty(type=ColorValue)
     color_values_index: IntProperty()
+
+    legend_enabled: BoolProperty(
+        name="Legend Enabled",
+        description="Enable legend generation and updates",
+        default=True,
+        update=_update_legend_enabled,
+    )
 
     num_nodes: IntProperty(
         name="Number of Nodes",

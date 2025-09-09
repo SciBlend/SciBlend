@@ -135,7 +135,9 @@ def _debounced_generate_overlay():
         if now - _last_change_time < _DEBOUNCE_SEC:
             return 0.1  
         try:
-            bpy.ops.compositor.png_overlay()
+            sc = getattr(bpy.context, 'scene', None)
+            if sc and getattr(sc.legend_settings, 'legend_enabled', True):
+                bpy.ops.compositor.png_overlay()
         except Exception as e:
             logger.exception("Failed to invoke png_overlay (debounced)", exc_info=e)
         return None
