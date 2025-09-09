@@ -18,6 +18,9 @@ class PNGOverlayPanel(Panel):
             layout.label(text="Legend settings not available", icon='INFO')
             return
         
+        row = layout.row(align=True)
+        row.prop(settings, "legend_enabled", text="Legend Enabled", toggle=True)
+        
         box = layout.box()
         row = box.row(align=True)
         row.label(text="Colormap", icon='COLOR')
@@ -89,5 +92,6 @@ class PNGOverlayPanel(Panel):
 
         row = layout.row()
         row.scale_y = 1.5
+        row.enabled = settings.legend_enabled
         row.operator("compositor.png_overlay",
                      text="Generate Legend", icon='RENDERLAYERS')

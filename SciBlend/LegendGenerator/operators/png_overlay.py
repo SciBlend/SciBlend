@@ -23,6 +23,10 @@ class PNGOverlayOperator(Operator):
         _running_overlay = True
         scene = context.scene
         settings = scene.legend_settings
+
+        if not getattr(settings, 'legend_enabled', True):
+            _running_overlay = False
+            return {'CANCELLED'}
         
         if settings.colormap == 'CUSTOM':
             colors_values = settings.colors_values

@@ -428,6 +428,7 @@ class MATERIAL_OT_create_shader(Operator):
     )
 
     def execute(self, context):
+        """Create a colormap material and apply it to selected/all meshes; if Legend auto-update is enabled, update and regenerate the legend overlay."""
         active_obj = context.active_object
         try:
             selected_attr = getattr(self, 'attribute_name', None)
@@ -505,6 +506,24 @@ class MATERIAL_OT_create_shader(Operator):
                                             update_set_material_nodes(node.node_tree)
                                 
                                 update_set_material_nodes(modifier.node_group)
+
+        try:
+            scene = context.scene
+            settings = getattr(scene, 'legend_settings', None)
+            if settings and getattr(settings, 'auto_from_shader', False):
+                try:
+                    from ..LegendGenerator.operators.choose_shader import update_legend_from_shader
+                    obj = context.active_object
+                    update_legend_from_shader(scene, obj)
+                except Exception:
+                    pass
+                try:
+                    if getattr(settings, 'legend_enabled', True):
+                        bpy.ops.compositor.png_overlay()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         self.report({'INFO'}, f"Applied shader with {self.colormap} colormap, {self.interpolation} interpolation, and gamma {self.gamma} to {'all mesh objects' if self.apply_to_all else 'selected objects'}")
         logger.info("Shader aplicado exitosamente")

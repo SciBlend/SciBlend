@@ -1,3 +1,4 @@
+import bpy
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -18,6 +19,7 @@ from ..utils.compositor_utils import (
 
 
 def _on_toggle_auto_from_shader(self, context):
+    """Handle enabling of automatic legend updates from the active object's shader and trigger an initial overlay render."""
     scene = context.scene
     settings = scene.legend_settings
     if settings.auto_from_shader:
@@ -25,6 +27,10 @@ def _on_toggle_auto_from_shader(self, context):
             from ..operators.choose_shader import update_legend_from_shader
             obj = getattr(context, 'active_object', None)
             update_legend_from_shader(scene, obj)
+        except Exception:
+            pass
+        try:
+            bpy.ops.compositor.png_overlay()
         except Exception:
             pass
 
@@ -81,6 +87,15 @@ def _update_legend(self, context):
     update_legend_scale_in_compositor(context)
 
 
+def _update_legend_enabled(self, context):
+    """Toggle compositor overlay visibility based on the legend_enabled setting."""
+    try:
+        from ..utils.compositor_utils import set_legend_visibility
+        set_legend_visibility(context, bool(self.legend_enabled))
+    except Exception:
+        pass
+
+
 def _get_system_fonts(self, context):
     """Enumerate system fonts using matplotlib's font manager."""
     return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
@@ -91,6 +106,13 @@ class LegendSettings(PropertyGroup):
 
     colors_values: CollectionProperty(type=ColorValue)
     color_values_index: IntProperty()
+
+    legend_enabled: BoolProperty(
+        name="Legend Enabled",
+        description="Enable legend generation and updates",
+        default=True,
+        update=_update_legend_enabled,
+    )
 
     num_nodes: IntProperty(
         name="Number of Nodes",
