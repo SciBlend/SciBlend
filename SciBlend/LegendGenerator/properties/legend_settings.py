@@ -339,4 +339,22 @@ class LegendSettings(PropertyGroup):
         max=1.0,
         description="Color of the legend text",
         update=_update_legend,
+    )
+
+    legend_label_padding: FloatProperty(
+        name="Label Padding",
+        description="Space between the colorbar and its label (points)",
+        default=10.0,
+        min=0.0,
+        max=200.0,
+        update=_update_legend,
+    )
+
+    legend_label_offset_pct: FloatProperty(
+        name="Label Offset (%)",
+        description="Position of the label along the colorbar, in percent of axis length",
+        default=50.0,
+        min=0.0,
+        max=100.0,
+        update=_update_legend,
     ) 
