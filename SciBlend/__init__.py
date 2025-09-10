@@ -7,6 +7,7 @@ except ImportError:
     print("Warning: bpy.utils.previews not available")
     
 from .operators.x3d.operators import ImportX3DOperator
+from ..ui.pref import SciBlendPreferences
 
 try:
     from .operators.vtk.operators import ImportVTKAnimationOperator
@@ -58,13 +59,11 @@ from .operators.gob_operators import (
     GOBSettings
 )
 
-# Legend Geneator guarded integration
+# Legend Generator guarded integration
 LEGEND_AVAILABLE = False
 legend_classes = ()
 LEGEND_DEPS_HANDLER = None
 try:
-    import matplotlib  # heavy dep check
-    import PIL  # pillow
     from .LegendGenerator import (
         update_nodes,
         update_legend_position,
@@ -540,6 +539,7 @@ classes = (
     GOB_OT_refresh_from_paraview,
     X3DImportSettings,
     SciBlendPanel,
+    SciBlendPreferences,
 ) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes
 
 def register():
