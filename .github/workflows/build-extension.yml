@@ -54,6 +54,11 @@ jobs:
           tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/$FILE"
           echo "BLENDER_BIN=$(find "$RUNNER_TEMP" -type f -name blender -path '*linux-x64/*' | head -n1)" >> "$GITHUB_ENV"
 
+      - name: Clean workspace before Blender build
+        run: |
+          set -euo pipefail
+          rm -rf "Paraview Macros" constraints images scripts .github README.md .gitignore || true
+
       - name: Build extension (split-platforms)
         run: |
           set -euo pipefail
