@@ -9,24 +9,50 @@
 [![macOS x64](https://img.shields.io/badge/download-macos--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.1/sciblend-1.1.1-macos-x64.zip)
 [![macOS ARM64](https://img.shields.io/badge/download-macos--arm64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.1/sciblend-1.1.1-macos-arm64.zip)
 
+<img src="./images/sciblend-favicon.png" align="right" width="100" style="margin-top: -20px">
+
 **SciBlend** is an extensible, Python-based toolkit developed to facilitate advanced scientific visualization workflows within Blender. It integrates Blender's rendering capabilities (Cycles & EEVEE) with functionalities for processing and visualizing complex computational data, aiming to bridge the gap often found between specialized data analysis tools and general-purpose 3D creation suites.
+
+
+
+
 
 ![SciBlend Overview](./images/0100.png)
 
 
 
-## 💾 Install
+## Install
 
+### Official Blender Extension
+The recommended way to install SciBlend is through the official Blender Extension Store:
 
-1. Download the platform zip above.
-2. Open Blender > Edit > Preferences > Add-ons.
-3. Select install from disk, select the zip, enable SciBlend.
+[![Blender Extension](https://img.shields.io/badge/Blender-Extension-orange?logo=blender)](https://extensions.blender.org/add-ons/sciblend/)
 
-After enabling, open View3D > Sidebar > SciBlend. The first panel is Advanced Core; other modules appear as separate panels within the same category.
+1. Open Blender > Edit > Preferences > Get Extensions
+2. Search for "SciBlend" and click Install
+3. Enable the SciBlend add-on in case it's not active
+
+### Manual Installation from GitHub Release
+Alternatively, you can install manually from GitHub:
+
+1. Download the platform zip above for your system
+2. Open Blender > Edit > Preferences > Add-ons
+3. Select "Install from Disk", select the downloaded zip
+4. Enable the SciBlend add-on in case it's not active
+
+### Development Version
+To install the latest development version:
+
+1. Go to GitHub Actions: https://github.com/SciBlend/SciBlend/actions
+2. Select the latest successful workflow run
+3. Download the artifact for your platform
+4. Install manually following the steps above
+
+After enabling, open View3D > Sidebar > SciBlend. 
 
 ## 🧩 Components included
 
-- Advanced Core: X3D, VTK/VTU/PVTU, NetCDF, Shapefile import and utilities
+- Advanced Core: scientific data import for static and animations (.x3d, .vtk, .vtu, .pvtu, .vtp, .pvtp, .nc, .nc4, .shp)
 - Shader Generator: scientific colormaps and shader creation
 - Legend Generator: compositor-based legends
 - Grid Generator: coordinate grids and guides
@@ -37,8 +63,6 @@ After enabling, open View3D > Sidebar > SciBlend. The first panel is Advanced Co
 ## ⚙️ Requirements
 
 - Blender 4.5.1 LTS+
-
-
 
 ## 🔄 Workflow Overview
 
@@ -51,22 +75,6 @@ SciBlend is designed to integrate into scientific visualization pipelines as fol
 5.  **Legend Generation (SciBlend Legend Generator):** Create legends to correlate visual elements with data values.
 6.  **Scene Composition & Rendering (SciBlend Compositor):** Adjust camera settings, lighting, and render parameters using Cycles or EEVEE.
 
-
-
-## 📦 Addon Suite Components
-
-This repository contains the SciBlend suite, a collection of Blender add-ons. Each component targets specific aspects of the visualization workflow:
-
--   **[SciBlend Advanced Core](https://github.com/josemarinfarina/SciBlend-AdvancedCore)**
--   **[SciBlend Core](https://github.com/josemarinfarina/SciBlend-Core)**
--   **[SciBlend Shader Generator](https://github.com/josemarinfarina/SciBlend-ShaderGenerator)**
--   **[SciBlend Legend Generator](https://github.com/josemarinfarina/SciBlend-LegendGenerator)**
--   **[SciBlend Grid Generator](https://github.com/josemarinfarina/SciBlend-GridGenerator)**
--   **[SciBlend Shapes Generator](https://github.com/josemarinfarina/SciBlend-ShapesGenerator)** 
--   **[SciBlend Notes Generator](https://github.com/josemarinfarina/SciBlend-NotesGenerator)**
--   **[SciBlend Compositor](https://github.com/josemarinfarina/SciBlend-Compositor)** 
-
-> **Note:** Each addon is also maintained and can be obtained from its individual repository. See links for the latest versions and specific documentation.
 
 
 ## 📚 Tutorials (In Development)
