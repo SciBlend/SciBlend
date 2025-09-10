@@ -9,7 +9,6 @@ from bpy.props import (
     FloatVectorProperty,
 )
 from bpy.types import PropertyGroup
-from matplotlib import font_manager
 from ..utils.color_utils import get_colormap_items, update_colormap
 from .color_value import ColorValue
 from ..utils.compositor_utils import (
@@ -104,8 +103,12 @@ def _update_legend_enabled(self, context):
 
 
 def _get_system_fonts(self, context):
-    """Enumerate system fonts using matplotlib's font manager."""
-    return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    """Enumerate system fonts using matplotlib's font manager (lazy import)."""
+    try:
+        from matplotlib import font_manager
+        return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    except Exception:
+        return []
 
 
 def _on_change_orientation(self, context):
@@ -260,7 +263,6 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_scale,
     )
 
-
     colormap: EnumProperty(
         name="Colormap",
         description="Select a scientific colormap or use custom colors",
@@ -356,5 +358,27 @@ class LegendSettings(PropertyGroup):
         default=50.0,
         min=0.0,
         max=100.0,
+        update=_update_legend,
+    )
+
+    legend_decimal_places: IntProperty(
+        name="Decimal Places",
+        description="Number of decimal places for numeric tick labels",
+        default=2,
+        min=0,
+        max=12,
+        update=_update_legend,
+    )
+
+    legend_number_format: EnumProperty(
+        name="Number Format",
+        description="Formatting style for numeric tick labels",
+        items=[
+            ('FIXED', "Fixed", "Fixed-point format, e.g., 1.23"),
+            ('SCIENTIFIC_E', "Scientific (e)", "Scientific notation with 'e', e.g., 1.23e-10"),
+            ('SCIENTIFIC_TEX', "Scientific (×10^)", "Scientific notation using ×10^, e.g., 1.23×10^-10"),
+            ('GENERAL', "General", "General format with minimal digits"),
+        ],
+        default='FIXED',
         update=_update_legend,
     ) 

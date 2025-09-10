@@ -51,6 +51,10 @@ class PNGOverlayPanel(Panel):
         row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
         row.operator("legend.choose_shader", text="Choose Shader", icon='SHADING_RENDERED')
 
+        row = box.row(align=True)
+        row.prop(settings, "legend_number_format", text="Format")
+        row.prop(settings, "legend_decimal_places", text="Decimals")
+
         box = layout.box()
         box.label(text="Legend Dimension", icon='ARROW_LEFTRIGHT')
         row = box.row(align=True)

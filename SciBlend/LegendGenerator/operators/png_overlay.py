@@ -14,7 +14,6 @@ def _build_unique_png_path(name: str, context: bpy.types.Context) -> str:
     """Resolve a unique PNG path using add-on preferences if available, else tempdir."""
     try:
         from importlib import import_module
-        # Try multiple possible relative locations based on how the add-on is installed
         for mod in (
             "..ui.pref",
             "...ui.pref",
@@ -28,11 +27,29 @@ def _build_unique_png_path(name: str, context: bpy.types.Context) -> str:
                 continue
     except Exception:
         pass
-    # Fallback: system temp
     directory = getattr(bpy.app, "tempdir", None) or tempfile.gettempdir()
     safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in str(name) or "legend")
     import uuid
     return os.path.join(directory, f"{safe}_{uuid.uuid4().hex}.png")
+
+
+def _format_number(value: float, decimals: int, mode: str) -> str:
+    """Format a numeric value according to decimals and format mode."""
+    try:
+        if mode == 'FIXED':
+            return f"{value:.{decimals}f}"
+        if mode == 'SCIENTIFIC_E':
+            return f"{value:.{decimals}e}"
+        if mode == 'GENERAL':
+            return f"{value:.{decimals}g}"
+        if mode == 'SCIENTIFIC_TEX':
+            s = f"{value:.{decimals}e}"
+            mantissa, exp = s.split('e')
+            exp_i = int(exp)
+            return rf"${mantissa}\times10^{{{exp_i}}}$"
+        return f"{value:.{decimals}f}"
+    except Exception:
+        return str(value)
 
 
 class PNGOverlayOperator(Operator):
@@ -84,7 +101,7 @@ class PNGOverlayOperator(Operator):
             for pos, value in zip(positions, values):
                 color = interpolate_color(selected_colormap, pos)
                 color_nodes.append((pos, color))
-                labels.append(f"{value:.2f}")
+                labels.append(_format_number(float(value), int(getattr(settings, 'legend_decimal_places', 2)), getattr(settings, 'legend_number_format', 'FIXED')))
 
         if not color_nodes:
             self.report({'ERROR'}, "No color nodes available")
