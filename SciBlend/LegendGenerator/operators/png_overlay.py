@@ -4,11 +4,36 @@ import os
 import numpy as np  
 from bpy.props import IntProperty
 from bpy.types import Operator
-from ..utils.gradient_bar import create_gradient_bar
+# from ..utils.gradient_bar import create_gradient_bar
 from ..utils.compositor_utils import update_legend_position_in_compositor, update_legend_scale_in_compositor
 from ..utils.color_utils import load_colormaps, interpolate_color
 
 _running_overlay = False
+
+def _build_unique_png_path(name: str, context: bpy.types.Context) -> str:
+    """Resolve a unique PNG path using add-on preferences if available, else tempdir."""
+    try:
+        from importlib import import_module
+        # Try multiple possible relative locations based on how the add-on is installed
+        for mod in (
+            "..ui.pref",
+            "...ui.pref",
+            "....ui.pref",
+        ):
+            try:
+                pref = import_module(mod, package=__package__)
+                if hasattr(pref, "build_unique_png_path"):
+                    return pref.build_unique_png_path(name, context)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    # Fallback: system temp
+    directory = getattr(bpy.app, "tempdir", None) or tempfile.gettempdir()
+    safe = "".join(c if c.isalnum() or c in ".-_" else "_" for c in str(name) or "legend")
+    import uuid
+    return os.path.join(directory, f"{safe}_{uuid.uuid4().hex}.png")
+
 
 class PNGOverlayOperator(Operator):
     bl_idname = "compositor.png_overlay"
@@ -17,6 +42,7 @@ class PNGOverlayOperator(Operator):
     resolution: IntProperty(name="Resolution", default=1920)
 
     def execute(self, context):
+        from ..utils.gradient_bar import create_gradient_bar
         global _running_overlay
         if _running_overlay:
             return {'CANCELLED'}
@@ -66,18 +92,17 @@ class PNGOverlayOperator(Operator):
             return {'CANCELLED'}
 
         try:
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
-                tmpname = tmpfile.name
-                font_type = settings.legend_font_type
-                font_path = settings.legend_system_font if font_type == 'SYSTEM' else settings.legend_font
-                create_gradient_bar(settings.legend_width, settings.legend_height, color_nodes,
-                                    labels, tmpname, settings.legend_name, 
-                                    settings.interpolation, settings.legend_orientation,
-                                    font_type, font_path,
-                                    settings.legend_text_color,
-                                    settings.legend_text_size_pt,
-                                    settings.legend_label_padding,
-                                    settings.legend_label_offset_pct)  
+            tmpname = _build_unique_png_path(getattr(settings, 'legend_name', 'legend'), context)
+            font_type = settings.legend_font_type
+            font_path = settings.legend_system_font if font_type == 'SYSTEM' else settings.legend_font
+            create_gradient_bar(settings.legend_width, settings.legend_height, color_nodes,
+                                labels, tmpname, settings.legend_name, 
+                                settings.interpolation, settings.legend_orientation,
+                                font_type, font_path,
+                                settings.legend_text_color,
+                                settings.legend_text_size_pt,
+                                settings.legend_label_padding,
+                                settings.legend_label_offset_pct)  
             scene.use_nodes = True
             tree = scene.node_tree
 

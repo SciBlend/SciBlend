@@ -7,6 +7,30 @@ import tempfile
 import uuid
 import re
 
+
+def _build_unique_png_path(base_name: str, context: bpy.types.Context | None = None) -> str:
+    """Resolve a unique PNG path using add-on preferences if available, else tempdir."""
+    try:
+        from importlib import import_module
+        for mod in (
+            "..ui.pref",
+            "...ui.pref",
+            "....ui.pref",
+        ):
+            try:
+                pref = import_module(mod, package=__package__)
+                if hasattr(pref, "build_unique_png_path"):
+                    return pref.build_unique_png_path(base_name, context)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    directory = getattr(bpy.app, "tempdir", None) or tempfile.gettempdir()
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(base_name) or "shape")
+    unique = uuid.uuid4().hex
+    return os.path.join(directory, f"sciblend_{safe}_{unique}.png")
+
+
 def _sanitize_filename_component(name):
     """Return a filesystem-safe component derived from name."""
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(name))
@@ -14,10 +38,8 @@ def _sanitize_filename_component(name):
 
 def _get_unique_temp_png_path(base_name):
     """Build a unique, writable temporary PNG file path for the given base name."""
-    temp_dir = getattr(bpy.app, "tempdir", None) or tempfile.gettempdir()
-    base_safe = _sanitize_filename_component(base_name)
-    unique = uuid.uuid4().hex
-    return os.path.join(temp_dir, f"sciblend_{base_safe}_{unique}.png")
+    return _build_unique_png_path(base_name)
+
 
 def _remove_blender_image_and_file(image):
     """Remove the Blender image datablock and delete its underlying file if present."""

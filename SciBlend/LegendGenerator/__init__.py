@@ -1,7 +1,6 @@
 import bpy
 from bpy.props import IntProperty, StringProperty, EnumProperty, CollectionProperty, FloatProperty, BoolProperty, FloatVectorProperty
 from bpy.types import PropertyGroup
-from matplotlib import font_manager
 import logging
 import time
 
@@ -11,7 +10,6 @@ from .ui.color_values_list import COLOR_UL_Values_List
 from .ui.png_overlay_panel import PNGOverlayPanel
 from .properties.color_value import ColorValue
 from .properties.legend_settings import LegendSettings
-from .utils.gradient_bar import create_gradient_bar
 from .utils.compositor_utils import update_legend_position_in_compositor, update_legend_scale_in_compositor
 from .utils.color_utils import get_colormap_items, update_colormap
 from .operators.choose_shader import LEGEND_OT_choose_shader, update_legend_from_shader
@@ -42,6 +40,7 @@ def update_nodes(self, context):
 def update_legend_position(self, context):
     update_legend_position_in_compositor(context)
 
+
 def update_legend_scale(self, context):
     scene = context.scene
     if scene.legend_scale_linked:
@@ -71,7 +70,11 @@ def update_legend(self, context):
     update_legend_scale_in_compositor(context)
 
 def get_system_fonts(self, context):
-    return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    try:
+        from matplotlib import font_manager
+        return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    except Exception:
+        return []
 
 classes = (
     ColorValue,
