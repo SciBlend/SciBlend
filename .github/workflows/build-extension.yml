@@ -84,12 +84,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sciblend-macos-x64
-          path: dist/*macos-x64*.zip
+          path: dist/*macos_x64*.zip
           if-no-files-found: ignore
 
       - name: Upload artifact (macos-arm64)
         uses: actions/upload-artifact@v4
         with:
           name: sciblend-macos-arm64
-          path: dist/*macos-arm64*.zip
+          path: dist/*macos_arm64*.zip
           if-no-files-found: ignore
