@@ -1,6 +1,8 @@
 # SciBlend
 
 [![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.cag.2025.104264-blue.svg)](https://doi.org/10.1016/j.cag.2025.104264) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15420392.svg)](https://doi.org/10.5281/zenodo.15420392)
+[![Demo](https://img.shields.io/badge/Demo-YouTube-red)](https://www.youtube.com/watch?v=X2UXjIVHyEs&ab_channel=Jos%C3%A9Mar%C3%ADn)
+
 
 
 [![Build](https://img.shields.io/github/actions/workflow/status/SciBlend/SciBlend/build-extension.yml?branch=main)](https://github.com/SciBlend/SciBlend/actions)
