@@ -19,6 +19,28 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
 
 
+def _safe_log_info(message: str) -> None:
+    """Log an info message without risking recursion within Blender handlers."""
+    try:
+        logger.info(message)
+    except Exception:
+        try:
+            print(message)
+        except Exception:
+            pass
+
+
+def _safe_log_exception(message: str, exc: Exception) -> None:
+    """Log an exception safely; degrade to print if logging backend fails."""
+    try:
+        logger.error(message, exc_info=exc)
+    except Exception:
+        try:
+            print(f"{message}: {exc}")
+        except Exception:
+            pass
+
+
 def update_nodes(self, context):
     scene = context.scene
     current_num_nodes = len(scene.colors_values)
@@ -142,14 +164,17 @@ def _debounced_generate_overlay():
             if sc and getattr(sc.legend_settings, 'legend_enabled', True):
                 bpy.ops.compositor.png_overlay()
         except Exception as e:
-            logger.exception("Failed to invoke png_overlay (debounced)", exc_info=e)
+            _safe_log_exception("Failed to invoke png_overlay (debounced)", e)
         return None
     finally:
         _timer_running = False
 
 
 def _auto_update_legend(scene):
+    """Update legend from shader changes with reentrancy guard and debounce."""
     global _prev_obj_name, _prev_signature, _processing_auto, _last_change_time, _timer_running
+    if _processing_auto:
+        return
     settings = getattr(scene, 'legend_settings', None)
     if not settings:
         logger.debug("No legend_settings on scene")
@@ -171,7 +196,7 @@ def _auto_update_legend(scene):
         _processing_auto = True
         try:
             ok = update_legend_from_shader(scene, obj)
-            logger.info(f"update_legend_from_shader ok={ok}")
+            _safe_log_info(f"update_legend_from_shader ok={ok}")
             _prev_obj_name = current
             _prev_signature = signature
             _last_change_time = time.monotonic()
@@ -181,20 +206,23 @@ def _auto_update_legend(scene):
                     bpy.app.timers.register(_debounced_generate_overlay, first_interval=_DEBOUNCE_SEC)
                 except Exception as e:
                     _timer_running = False
-                    logger.exception("Failed to register debounce timer", exc_info=e)
+                    _safe_log_exception("Failed to register debounce timer", e)
         except Exception as e:
-            logger.exception("Error updating legend from shader", exc_info=e)
+            _safe_log_exception("Error updating legend from shader", e)
         finally:
             _processing_auto = False
 
 
 def _depsgraph_handler(dummy):
+    """Depsgraph handler entry point guarded against reentrancy."""
+    if _processing_auto:
+        return
     try:
         sc = getattr(bpy.context, 'scene', None)
         if sc:
             _auto_update_legend(sc)
     except Exception as e:
-        logger.exception("Depsgraph handler error", exc_info=e)
+        _safe_log_exception("Depsgraph handler error", e)
 
 
 def register():

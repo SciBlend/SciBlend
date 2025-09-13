@@ -105,5 +105,15 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         box = layout.box()
-        box.label(text="Threshold", icon='MOD_OPACITY')
-        box.operator("filters.apply_volume_threshold", text="Apply Threshold") 
+        box.label(text="Threshold (closed surface)", icon='MESH_DATA')
+        s = getattr(context.scene, "filters_threshold_settings", None)
+        if not s:
+            box.label(text="Threshold settings unavailable", icon='ERROR')
+            return
+        col = box.column(align=True)
+        col.prop(s, "target_object", text="Domain Mesh")
+        col.prop(s, "attribute", text="Attribute")
+        row = col.row(align=True)
+        row.prop(s, "min_value")
+        row.prop(s, "max_value")
+        col.operator("filters.build_threshold_surface", text="Build/Update", icon='MESH_DATA') 
