@@ -21,7 +21,7 @@
 
 
 
-![SciBlend Overview](./images/0112.png)
+![SciBlend Overview](./images/0102.png)
 
 
 
