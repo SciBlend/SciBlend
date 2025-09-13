@@ -3,6 +3,7 @@ from bpy.types import Operator
 
 
 def update_legend_from_shader(scene, obj):
+    """Read shader nodes from the given object's active material and map them to legend settings (name, range and colormap)."""
     settings = scene.legend_settings
     if not obj or obj.type != 'MESH':
         return False

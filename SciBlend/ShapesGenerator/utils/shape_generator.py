@@ -1,13 +1,24 @@
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch, Ellipse, RegularPolygon, Rectangle
-from matplotlib.transforms import Affine2D
-import matplotlib.font_manager as fm
 from io import BytesIO
 import os
 
+
 def generate_shape(shape_type, **kwargs):
+    """Generate a shape image using matplotlib and PIL.
+
+    Imports heavy dependencies lazily to avoid failing at add-on load if they
+    are missing. The caller should handle None if generation fails.
+    """
+    try:
+        from PIL import Image
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import FancyArrowPatch, Ellipse, RegularPolygon, Rectangle
+        from matplotlib.transforms import Affine2D
+        import matplotlib.font_manager as fm
+    except Exception as e:
+        print(f"Error: Required dependencies for shape generation are missing: {e}")
+        return None
+
     dimension_x = int(kwargs.get('dimension_x', 100))
     dimension_y = int(kwargs.get('dimension_y', 100))
     
@@ -52,18 +63,24 @@ def generate_shape(shape_type, **kwargs):
     elif shape_type == 'CUSTOM':
         custom_shape_path = kwargs.get('custom_shape_path', '')
         if custom_shape_path and os.path.exists(custom_shape_path):
+            try:
+                from PIL import Image
+            except Exception:
+                print("Error: PIL is required for custom shape images.")
+                return None
             custom_image = Image.open(custom_shape_path).convert("RGBA")
             custom_image = custom_image.resize((dimension_x, dimension_y))
             
             fill_color = kwargs.get('fill_color', (1, 1, 1, 1))
             fill_color = tuple(int(c * 255) for c in fill_color) 
             if custom_image and custom_image.size:
-                fill_image = Image.new('RGBA', custom_image.size, fill_color)
+                from PIL import Image as _PILImage
+                fill_image = _PILImage.new('RGBA', custom_image.size, fill_color)
                 
                 r, g, b, a = custom_image.split()
-                filled_rgb = Image.composite(custom_image, fill_image, a)
+                filled_rgb = _PILImage.composite(custom_image, fill_image, a)
                 
-                custom_image = Image.merge('RGBA', (*filled_rgb.split()[:3], a))
+                custom_image = _PILImage.merge('RGBA', (*filled_rgb.split()[:3], a))
             else:
                 print("Error: Custom image did not load correctly")
                 return None

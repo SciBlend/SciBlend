@@ -66,3 +66,47 @@ def update_legend_scale_in_compositor(context):
 
 def update_legend_scale_mode(context):
     update_legend_scale_in_compositor(context)
+
+
+def set_legend_visibility(context, visible: bool):
+    """Show or hide the legend overlay in the compositor.
+
+    - If enabling and the overlay nodes are missing, generate the overlay first.
+    - If nodes exist, toggle the Alpha Over node mute state to hide/show the overlay.
+    """
+    scene = context.scene
+    tree = scene.node_tree
+
+    if not tree:
+        if visible:
+            try:
+                bpy.ops.compositor.png_overlay()
+            except Exception:
+                return
+        return
+
+    image_node = None
+    alpha_over_node = None
+    for node in tree.nodes:
+        if node.type == 'IMAGE':
+            image_node = node
+        elif node.type == 'ALPHAOVER':
+            alpha_over_node = node
+
+    if visible and (not image_node or not alpha_over_node):
+        try:
+            bpy.ops.compositor.png_overlay()
+        except Exception:
+            return
+        return
+
+    if not alpha_over_node:
+        return
+
+    try:
+        alpha_over_node.mute = not visible
+    except Exception:
+        pass
+
+    for area in bpy.context.screen.areas:
+        area.tag_redraw()

@@ -7,6 +7,7 @@ except ImportError:
     print("Warning: bpy.utils.previews not available")
     
 from .operators.x3d.operators import ImportX3DOperator
+from ..ui.pref import SciBlendPreferences
 
 try:
     from .operators.vtk.operators import ImportVTKAnimationOperator
@@ -57,6 +58,8 @@ from .operators.gob_operators import (
     GOB_OT_refresh_from_paraview,
     GOBSettings
 )
+
+
 
 LEGEND_AVAILABLE = False
 legend_classes = ()
@@ -235,6 +238,7 @@ try:
     from .NotesGenerator.properties.annotation_properties import AnnotationProperties
     # Align Notes Generator panel category to SciBlend
     NOTESGENERATOR_PT_main_panel.bl_category = 'SciBlend'
+    NOTESGENERATOR_PT_main_panel.bl_options = {'DEFAULT_CLOSED'}
     NOTES_AVAILABLE = True
     notes_classes = (
         NOTESGENERATOR_PT_main_panel,
@@ -285,6 +289,7 @@ try:
     )
     # Align Shapes Generator panel to SciBlend category
     SHAPESGENERATOR_PT_Panel.bl_category = 'SciBlend'
+    SHAPESGENERATOR_PT_Panel.bl_options = {'DEFAULT_CLOSED'}
     SHAPES_AVAILABLE = True
     shapes_classes = (
         ShapesGeneratorItem,
@@ -344,8 +349,9 @@ try:
         update_camera_list_index,
     )
     from .Compositor.cinematography.render_settings_group import CinematographySettings
-    # Align panel to SciBlend category
+
     COMPOSITOR_PT_panel.bl_category = 'SciBlend'
+    COMPOSITOR_PT_panel.bl_options = {'DEFAULT_CLOSED'}
     COMPOSITOR_AVAILABLE = True
     compositor_classes = (
         COMPOSITOR_PT_panel,
@@ -585,8 +591,8 @@ classes = (
     X3DImportSettings,
     VolumeMeshInfo,
     SciBlendPanel,
+    SciBlendPreferences
 ) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes + filters_classes
-
 
 def register():
     global preview_collection

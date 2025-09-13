@@ -54,6 +54,11 @@ jobs:
           tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/$FILE"
           echo "BLENDER_BIN=$(find "$RUNNER_TEMP" -type f -name blender -path '*linux-x64/*' | head -n1)" >> "$GITHUB_ENV"
 
+      - name: Clean workspace before Blender build
+        run: |
+          set -euo pipefail
+          rm -rf "Paraview Macros" constraints images scripts .github README.md .gitignore || true
+
       - name: Build extension (split-platforms)
         run: |
           set -euo pipefail
@@ -61,8 +66,30 @@ jobs:
           "$BLENDER_BIN" --command extension build --source-dir . --output-dir dist --split-platforms
           ls -lh dist
 
-      - name: Upload artifacts
+      - name: Upload artifact (linux-x64)
         uses: actions/upload-artifact@v4
         with:
-          name: sciblend-extension-split
-          path: dist/*.zip
+          name: sciblend-linux-x64
+          path: dist/*linux*.zip
+          if-no-files-found: ignore
+
+      - name: Upload artifact (windows-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sciblend-windows-x64
+          path: dist/*windows*.zip
+          if-no-files-found: ignore
+
+      - name: Upload artifact (macos-x64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sciblend-macos-x64
+          path: dist/*macos_x64*.zip
+          if-no-files-found: ignore
+
+      - name: Upload artifact (macos-arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sciblend-macos-arm64
+          path: dist/*macos_arm64*.zip
+          if-no-files-found: ignore

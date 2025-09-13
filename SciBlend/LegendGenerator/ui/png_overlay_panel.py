@@ -18,6 +18,9 @@ class PNGOverlayPanel(Panel):
             layout.label(text="Legend settings not available", icon='INFO')
             return
         
+        row = layout.row(align=True)
+        row.prop(settings, "legend_enabled", text="Legend Enabled", toggle=True)
+        
         box = layout.box()
         row = box.row(align=True)
         row.label(text="Colormap", icon='COLOR')
@@ -47,6 +50,10 @@ class PNGOverlayPanel(Panel):
         row = box.row(align=True)
         row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
         row.operator("legend.choose_shader", text="Choose Shader", icon='SHADING_RENDERED')
+
+        row = box.row(align=True)
+        row.prop(settings, "legend_number_format", text="Format")
+        row.prop(settings, "legend_decimal_places", text="Decimals")
 
         box = layout.box()
         box.label(text="Legend Dimension", icon='ARROW_LEFTRIGHT')
@@ -87,7 +94,14 @@ class PNGOverlayPanel(Panel):
         row = box.row()
         row.prop(settings, "legend_text_color", text="Text Color")
 
+        row = box.row(align=True)
+        row.prop(settings, "legend_label_padding", text="Label Padding")
+
+        row = box.row(align=True)
+        row.prop(settings, "legend_label_offset_pct", text="Label Offset (%)")
+        
         row = layout.row()
         row.scale_y = 1.5
+        row.enabled = settings.legend_enabled
         row.operator("compositor.png_overlay",
                      text="Generate Legend", icon='RENDERLAYERS')

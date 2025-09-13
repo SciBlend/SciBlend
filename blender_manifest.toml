@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "sciblend"
-version = "1.1.1"
+version = "1.1.2"
 name = "SciBlend"
 tagline = "Scientific visualization tools for Blender"
 maintainer = "José Marín<info@sciblend.com>"

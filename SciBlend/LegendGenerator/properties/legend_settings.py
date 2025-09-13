@@ -1,3 +1,4 @@
+import bpy
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -8,7 +9,6 @@ from bpy.props import (
     FloatVectorProperty,
 )
 from bpy.types import PropertyGroup
-from matplotlib import font_manager
 from ..utils.color_utils import get_colormap_items, update_colormap
 from .color_value import ColorValue
 from ..utils.compositor_utils import (
@@ -18,6 +18,7 @@ from ..utils.compositor_utils import (
 
 
 def _on_toggle_auto_from_shader(self, context):
+    """Handle enabling of automatic legend updates from the active object's shader and trigger an initial overlay render."""
     scene = context.scene
     settings = scene.legend_settings
     if settings.auto_from_shader:
@@ -25,6 +26,10 @@ def _on_toggle_auto_from_shader(self, context):
             from ..operators.choose_shader import update_legend_from_shader
             obj = getattr(context, 'active_object', None)
             update_legend_from_shader(scene, obj)
+        except Exception:
+            pass
+        try:
+            bpy.ops.compositor.png_overlay()
         except Exception:
             pass
 
@@ -79,11 +84,73 @@ def _update_legend_scale_mode(self, context):
 def _update_legend(self, context):
     """Generic update to refresh compositor when legend attributes change."""
     update_legend_scale_in_compositor(context)
+    try:
+        sc = getattr(bpy.context, 'scene', None)
+        settings = getattr(sc, 'legend_settings', None) if sc else None
+        if settings and getattr(settings, 'legend_enabled', True):
+            bpy.ops.compositor.png_overlay()
+    except Exception:
+        pass
+
+
+def _update_legend_enabled(self, context):
+    """Toggle compositor overlay visibility based on the legend_enabled setting."""
+    try:
+        from ..utils.compositor_utils import set_legend_visibility
+        set_legend_visibility(context, bool(self.legend_enabled))
+    except Exception:
+        pass
 
 
 def _get_system_fonts(self, context):
-    """Enumerate system fonts using matplotlib's font manager."""
-    return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    """Enumerate system fonts using matplotlib's font manager (lazy import)."""
+    try:
+        from matplotlib import font_manager
+        return [(f.name, f.name, f.name) for f in font_manager.fontManager.ttflist]
+    except Exception:
+        return []
+
+
+def _on_change_orientation(self, context):
+    """Set default legend parameters based on the selected orientation.
+
+    Vertical:
+    - Dimensions: 1920x1080
+    - Scale: 0.85x (X and Y)
+    - Position: X 40.00, Y 0
+    - Font size: 30.0 pt
+
+    Horizontal:
+    - Dimensions: 1920x1080
+    - Scale: 0.6x (X and Y)
+    - Position: X 0, Y -15.00
+    - Font size: 25.0 pt
+    """
+    scene = context.scene
+    settings = scene.legend_settings
+
+    if settings.legend_orientation == 'VERTICAL':
+        settings.legend_width = 1920
+        settings.legend_height = 1080
+        settings.legend_scale_x = 0.85
+        settings.legend_scale_y = 0.85
+        settings.legend_position_x = 40.0
+        settings.legend_position_y = 0.0
+        settings.legend_text_size_pt = 30.0
+    else:
+        settings.legend_width = 1920
+        settings.legend_height = 1080
+        settings.legend_scale_x = 0.6
+        settings.legend_scale_y = 0.6
+        settings.legend_position_x = 0.0
+        settings.legend_position_y = -15.0
+        settings.legend_text_size_pt = 25.0
+
+    try:
+        if getattr(settings, 'legend_enabled', True):
+            bpy.ops.compositor.png_overlay()
+    except Exception:
+        pass
 
 
 class LegendSettings(PropertyGroup):
@@ -91,6 +158,13 @@ class LegendSettings(PropertyGroup):
 
     colors_values: CollectionProperty(type=ColorValue)
     color_values_index: IntProperty()
+
+    legend_enabled: BoolProperty(
+        name="Legend Enabled",
+        description="Enable legend generation and updates",
+        default=True,
+        update=_update_legend_enabled,
+    )
 
     num_nodes: IntProperty(
         name="Number of Nodes",
@@ -115,6 +189,7 @@ class LegendSettings(PropertyGroup):
             ('NEAREST', "Nearest", "Nearest neighbor interpolation"),
         ],
         default='LINEAR',
+        update=_update_legend,
     )
 
     legend_orientation: EnumProperty(
@@ -124,6 +199,7 @@ class LegendSettings(PropertyGroup):
             ('VERTICAL', "Vertical", "Vertical orientation"),
         ],
         default='HORIZONTAL',
+        update=_on_change_orientation,
     )
 
     legend_position_x: FloatProperty(
@@ -134,14 +210,14 @@ class LegendSettings(PropertyGroup):
 
     legend_position_y: FloatProperty(
         name="Y Position",
-        default=0.0,
+        default=-15.0,
         update=_update_legend_position,
     )
 
     legend_text_size_pt: FloatProperty(
         name="Text Size (pt)",
         description="Legend text size in points",
-        default=12.0,
+        default=25.0,
         min=6.0,
         max=72.0,
         step=10,
@@ -165,7 +241,7 @@ class LegendSettings(PropertyGroup):
     legend_scale_x: FloatProperty(
         name="X Scale",
         description="Scale of the legend in X direction",
-        default=1.0,
+        default=0.6,
         min=0.1,
         max=10.0,
         update=_update_legend_scale,
@@ -174,7 +250,7 @@ class LegendSettings(PropertyGroup):
     legend_scale_y: FloatProperty(
         name="Y Scale",
         description="Scale of the legend in Y direction",
-        default=1.0,
+        default=0.6,
         min=0.1,
         max=10.0,
         update=_update_legend_scale,
@@ -186,7 +262,6 @@ class LegendSettings(PropertyGroup):
         default=True,
         update=_update_legend_scale,
     )
-
 
     colormap: EnumProperty(
         name="Colormap",
@@ -222,14 +297,14 @@ class LegendSettings(PropertyGroup):
     legend_width: IntProperty(
         name="Width",
         description="Width of the legend in pixels",
-        default=200,
+        default=1920,
         min=1,
     )
 
     legend_height: IntProperty(
         name="Height",
         description="Height of the legend in pixels",
-        default=600,
+        default=1080,
         min=1,
     )
 
@@ -265,5 +340,45 @@ class LegendSettings(PropertyGroup):
         min=0.0,
         max=1.0,
         description="Color of the legend text",
+        update=_update_legend,
+    )
+
+    legend_label_padding: FloatProperty(
+        name="Label Padding",
+        description="Space between the colorbar and its label (points)",
+        default=10.0,
+        min=0.0,
+        max=200.0,
+        update=_update_legend,
+    )
+
+    legend_label_offset_pct: FloatProperty(
+        name="Label Offset (%)",
+        description="Position of the label along the colorbar, in percent of axis length",
+        default=50.0,
+        min=0.0,
+        max=100.0,
+        update=_update_legend,
+    )
+
+    legend_decimal_places: IntProperty(
+        name="Decimal Places",
+        description="Number of decimal places for numeric tick labels",
+        default=2,
+        min=0,
+        max=12,
+        update=_update_legend,
+    )
+
+    legend_number_format: EnumProperty(
+        name="Number Format",
+        description="Formatting style for numeric tick labels",
+        items=[
+            ('FIXED', "Fixed", "Fixed-point format, e.g., 1.23"),
+            ('SCIENTIFIC_E', "Scientific (e)", "Scientific notation with 'e', e.g., 1.23e-10"),
+            ('SCIENTIFIC_TEX', "Scientific (×10^)", "Scientific notation using ×10^, e.g., 1.23×10^-10"),
+            ('GENERAL', "General", "General format with minimal digits"),
+        ],
+        default='FIXED',
         update=_update_legend,
     ) 
