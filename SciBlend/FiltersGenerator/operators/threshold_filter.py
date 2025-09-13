@@ -71,7 +71,7 @@ class FILTERS_OT_apply_threshold(bpy.types.Operator):
 		return context.window_manager.invoke_props_dialog(self)
 
 	def execute(self, context):
-		"""Create a filtered surface mesh comprising boundary faces of passing cells."""
+		"""Create a filtered surface mesh comprising boundary faces of passing cells, and copy attributes."""
 		active_obj = context.active_object
 		volume_model = get_model(active_obj.name)
 		if not volume_model or self.attribute == 'NONE':
@@ -95,6 +95,7 @@ class FILTERS_OT_apply_threshold(bpy.types.Operator):
 			return {'FINISHED'}
 
 		blender_faces_to_create = []
+		face_owner_cells = []
 		for cell in passing_cells:
 			for face in cell.faces:
 				other = face.neighbour if face.owner == cell else face.owner
@@ -104,6 +105,7 @@ class FILTERS_OT_apply_threshold(bpy.types.Operator):
 						continue
 					face_indices = [v.blender_v_index for v in face_verts]
 					blender_faces_to_create.append(face_indices)
+					face_owner_cells.append(cell)
 
 		blender_vertices = [v.co for v in volume_model.vertices]
 		new_mesh_name = f"{active_obj.name}_Threshold"
@@ -111,6 +113,42 @@ class FILTERS_OT_apply_threshold(bpy.types.Operator):
 		new_obj = bpy.data.objects.new(new_mesh_name, new_mesh)
 		new_mesh.from_pydata(blender_vertices, [], blender_faces_to_create)
 		new_mesh.update()
+
+		src_mesh = active_obj.data
+		try:
+			for src_attr in src_mesh.attributes:
+				if getattr(src_attr, 'domain', '') != 'POINT':
+					continue
+				if getattr(src_attr, 'data_type', '') != 'FLOAT':
+					continue
+				if src_attr.data and len(src_attr.data) == len(blender_vertices):
+					dst = new_mesh.attributes.new(name=src_attr.name, type='FLOAT', domain='POINT')
+					buf = [0.0] * len(blender_vertices)
+					src_attr.data.foreach_get('value', buf)
+					dst.data.foreach_set('value', buf)
+		except Exception:
+			pass
+
+		if face_owner_cells:
+			all_attr_names = set()
+			for cell in face_owner_cells:
+				for k in cell.attributes.keys():
+					all_attr_names.add(k)
+			for attr_name in sorted(all_attr_names):
+				values = [0.0] * len(blender_faces_to_create)
+				for face_idx, cell in enumerate(face_owner_cells):
+					val = cell.attributes.get(attr_name)
+					if val is None:
+						continue
+					try:
+						if isinstance(val, (list, tuple)):
+							values[face_idx] = float(val[0]) if len(val) > 0 else 0.0
+						else:
+							values[face_idx] = float(val)
+					except Exception:
+						values[face_idx] = 0.0
+				attr = new_mesh.attributes.new(name=f"cell_{attr_name}", type='FLOAT', domain='FACE')
+				attr.data.foreach_set('value', values)
 
 		context.collection.objects.link(new_obj)
 		context.view_layer.objects.active = new_obj
