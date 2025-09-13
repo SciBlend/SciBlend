@@ -59,7 +59,8 @@ from .operators.gob_operators import (
     GOBSettings
 )
 
-# Legend Generator guarded integration
+
+
 LEGEND_AVAILABLE = False
 legend_classes = ()
 LEGEND_DEPS_HANDLER = None
@@ -97,7 +98,7 @@ except ImportError:
 
         def draw(self, context):
             layout = self.layout
-            box = layout.box()
+            box = self.layout.box()
             box.label(text="Legend Generator unavailable", icon='ERROR')
             box.label(text="Missing dependencies: matplotlib, pillow")
 
@@ -153,7 +154,7 @@ except ImportError:
 
         def draw(self, context):
             layout = self.layout
-            box = layout.box()
+            box = self.layout.box()
             box.label(text="Shader Generator unavailable", icon='ERROR')
             box.label(text="Missing dependency: scipy")
 
@@ -211,7 +212,7 @@ except ImportError:
 
         def draw(self, context):
             layout = self.layout
-            box = layout.box()
+            box = self.layout.box()
             box.label(text="Grid Generator unavailable", icon='ERROR')
             box.label(text="Missing internal modules")
 
@@ -255,7 +256,7 @@ except ImportError:
 
         def draw(self, context):
             layout = self.layout
-            box = layout.box()
+            box = self.layout.box()
             box.label(text="Notes Generator unavailable", icon='ERROR')
             box.label(text="Missing internal modules")
 
@@ -385,6 +386,52 @@ except ImportError:
 
     compositor_classes = (CompositorOperatorStub, CompositorPanelStub)
 
+FILTERS_AVAILABLE = False
+filters_classes = ()
+try:
+    from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+    from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
+    from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
+    from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
+    from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
+    from .FiltersGenerator.operators.volume_import import FILTERS_OT_volume_import_vdb_sequence
+    from .FiltersGenerator.operators.volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range
+    from .FiltersGenerator.operators.threshold_filter import FILTERS_OT_apply_threshold
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_geometry_filters
+    FILTERS_AVAILABLE = True
+    filters_classes = (
+        FiltersEmitterSettings,
+        VolumeRenderingSettings,
+        FILTERS_OT_create_emitter,
+        FILTERS_OT_place_emitter,
+        FILTERS_OT_generate_streamline,
+        FILTERS_OT_volume_import_vdb_sequence,
+        FILTERS_OT_volume_update_material,
+        FILTERS_OT_volume_compute_range,
+        FILTERS_OT_apply_threshold,
+        FILTERSGENERATOR_PT_main_panel,
+        FILTERSGENERATOR_PT_stream_tracers,
+        FILTERSGENERATOR_PT_volume_filter,
+        FILTERSGENERATOR_PT_geometry_filters,
+    )
+except ImportError:
+    class FiltersGeneratorPanelStub(bpy.types.Panel):
+        """Stub panel for Filters Generator shown when required modules are missing."""
+        bl_label = "Filters Generator"
+        bl_idname = "OBJECT_PT_sciblend_filters_generator"
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'UI'
+        bl_category = 'SciBlend Advanced Core'
+        def draw(self, context):
+            box = self.layout.box()
+            box.label(text="Filters Generator unavailable", icon='ERROR')
+            box.label(text="Missing internal modules")
+
+    filters_classes = (FiltersGeneratorPanelStub,)
+
 preview_collection = None
 
 class X3DImportSettings(bpy.types.PropertyGroup):
@@ -405,7 +452,7 @@ class X3DImportSettings(bpy.types.PropertyGroup):
             ('-Y', "-Y", ""),
             ('-Z', "-Z", ""),
         ],
-        default='Y',
+        default='-Z',
     )
     axis_up: bpy.props.EnumProperty(
         name="Up",
@@ -417,7 +464,7 @@ class X3DImportSettings(bpy.types.PropertyGroup):
             ('-Y', "-Y", ""),
             ('-Z', "-Z", ""),
         ],
-        default='Z',
+        default='Y',
     )
     overwrite_scene: bpy.props.BoolProperty(
         name="Overwrite Scene",
@@ -435,6 +482,10 @@ class X3DImportSettings(bpy.types.PropertyGroup):
         min=1,
         soft_max=200,
     )
+
+class VolumeMeshInfo(bpy.types.PropertyGroup):
+    """Metadata for objects created from a managed volumetric mesh."""
+    is_volume_mesh: bpy.props.BoolProperty(default=False)
 
 class SciBlendPanel(bpy.types.Panel):
     bl_label = "Advanced Core"
@@ -538,9 +589,10 @@ classes = (
     GOB_OT_disconnect_from_paraview,
     GOB_OT_refresh_from_paraview,
     X3DImportSettings,
+    VolumeMeshInfo,
     SciBlendPanel,
-    SciBlendPreferences,
-) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes
+    SciBlendPreferences
+) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes + filters_classes
 
 def register():
     global preview_collection
@@ -568,6 +620,7 @@ def register():
         default="EMPTY"
     )
     bpy.types.Scene.gob_settings = bpy.props.PointerProperty(type=GOBSettings)
+    bpy.types.Object.volume_mesh_info = bpy.props.PointerProperty(type=VolumeMeshInfo)
 
     if LEGEND_AVAILABLE:
         bpy.types.Scene.legend_settings = bpy.props.PointerProperty(type=LegendSettings)
@@ -575,29 +628,28 @@ def register():
             bpy.app.handlers.depsgraph_update_post.append(LEGEND_DEPS_HANDLER)
             print("SciBlend: Legend depsgraph handler registered")
 
-    # Shader Generator properties (only when available)
     if SHADER_AVAILABLE:
         bpy.types.Scene.custom_colorramp = bpy.props.CollectionProperty(type=ColorRampColor)
 
-    # Grid Generator properties (only when available)
     if GRID_AVAILABLE:
         bpy.types.Scene.grid_settings = bpy.props.PointerProperty(type=GridSettings)
 
-    # Notes Generator properties (only when available)
     if NOTES_AVAILABLE:
         bpy.types.Scene.annotation_properties = bpy.props.PointerProperty(type=AnnotationProperties)
 
-    # Shapes Generator properties (only when available)
     if SHAPES_AVAILABLE:
         bpy.types.Scene.shapesgenerator_shapes = bpy.props.CollectionProperty(type=ShapesGeneratorItem)
         bpy.types.Scene.shapesgenerator_active_shape_index = bpy.props.IntProperty()
 
-    # Compositor properties (only when available)
     if COMPOSITOR_AVAILABLE:
-        # All cinematography settings are now grouped under `Scene.cinematography_settings`.
         bpy.types.Scene.cinematography_settings = bpy.props.PointerProperty(type=CinematographySettings)
-        # Ensure camera objects have a camera_range property available for UI/operators
         bpy.types.Object.camera_range = bpy.props.PointerProperty(type=CameraRangeProperties)
+
+    if FILTERS_AVAILABLE:
+        from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+        from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
+        bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
+        bpy.types.Scene.filters_volume_settings = bpy.props.PointerProperty(type=VolumeRenderingSettings)
 
 
 def unregister():
@@ -634,6 +686,12 @@ def unregister():
             del bpy.types.Scene.cinematography_settings
         if hasattr(bpy.types.Object, "camera_range"):
             del bpy.types.Object.camera_range
+    if hasattr(bpy.types.Object, 'volume_mesh_info'):
+        del bpy.types.Object.volume_mesh_info
+    if hasattr(bpy.types.Scene, 'filters_emitter_settings'):
+        del bpy.types.Scene.filters_emitter_settings
+    if hasattr(bpy.types.Scene, 'filters_volume_settings'):
+        del bpy.types.Scene.filters_volume_settings
 
 if __name__ == "__main__":
     register()
@@ -641,7 +699,7 @@ if __name__ == "__main__":
 bl_info = {
     "name": "SciBlend",
     "author": "José Marín",
-    "version": (1, 1, 2),
+    "version": (1, 2, 0),
     "blender": (4, 5, 1),
     "location": "View3D > Sidebar > SciBlend",
     "description": "Scientific visualization tools for Blender",

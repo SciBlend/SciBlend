@@ -1,14 +1,15 @@
 import bpy
-from bpy_extras.io_utils import ImportHelper, axis_conversion
-from bpy.props import StringProperty, EnumProperty, CollectionProperty, FloatProperty, BoolProperty, IntProperty
-from bpy.types import Operator
 import os
 import math
 import mathutils
 import time
 import json
+from bpy_extras.io_utils import ImportHelper, axis_conversion
+from bpy.props import StringProperty, EnumProperty, CollectionProperty, FloatProperty, BoolProperty, IntProperty
+from bpy.types import Operator
 from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
+from ..utils.volume_mesh_data import VolumeMeshData, VolumeVertex, VolumeFace, VolumeCell, register_model
 
 # VTK cell type ids
 VTK_VERTEX = 1
@@ -83,11 +84,11 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			filepath = os.path.join(self.directory, file_elem.name)
 			frame = self.start_frame_number + i
 			per_item_start = time.time()
-			vertices, edges, faces, point_data = self._read_grid(filepath)
-			if not vertices:
+			volume_data, point_data = self._read_grid(filepath)
+			if not volume_data or len(volume_data.vertices) == 0:
 				self.report({'ERROR'}, f"Failed to read file {file_elem.name}: No vertices found.")
 				continue
-			obj = self._create_mesh(context, vertices, edges, faces, point_data, f"Frame_{frame}")
+			obj = self._create_mesh(context, volume_data, point_data, f"Frame_{frame}")
 			rotation = axis_conversion(from_forward='-Z', from_up='Y', to_forward=self.axis_forward, to_up=self.axis_up).to_4x4()
 			scale = mathutils.Matrix.Scale(self.scale_factor, 4)
 			obj.matrix_world = rotation @ scale
@@ -110,7 +111,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		return {'FINISHED'}
 
 	def _read_grid(self, filepath):
-		"""Read VTK/vtu/pvtu grid and return vertices, edges, faces, and point_data."""
+		"""Read a VTK file and build an instance-based topological volume model and point data."""
 		from vtkmodules.vtkIOLegacy import vtkUnstructuredGridReader, vtkPolyDataReader
 		from vtkmodules.vtkIOXML import (
 			vtkXMLUnstructuredGridReader,
@@ -152,129 +153,68 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			reader.Update()
 			data = reader.GetOutput()
 		else:
-			return [], [], [], {}
+			return None, {}
 		
 		if data is None:
-			return [], [], [], {}
+			return None, {}
 		try:
 			num_points = int(data.GetNumberOfPoints()) if hasattr(data, 'GetNumberOfPoints') else 0
+		except Exception:
+			num_points = 0
+		if num_points == 0:
+			return None, {}
+		
+		volume_data = VolumeMeshData()
+		vtk_points = data.GetPoints()
+		for i in range(vtk_points.GetNumberOfPoints()):
+			volume_data.vertices.append(VolumeVertex(vtk_points.GetPoint(i), original_index=i))
+		
+		cell_definitions = {
+			VTK_TETRA: [[0,2,1], [0,1,3], [1,2,3], [0,3,2]],
+			VTK_HEXAHEDRON: [[0,3,2,1], [4,5,6,7], [0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7]],
+			VTK_WEDGE: [[0,2,1], [3,4,5], [0,1,4,3], [1,2,5,4], [2,0,3,5]],
+			VTK_PYRAMID: [[0,1,2,3], [0,1,4], [1,2,4], [2,3,4], [3,0,4]],
+			VTK_VOXEL: [[0,1,3,2], [4,5,7,6], [0,2,6,4], [1,3,7,5], [0,1,5,4], [2,3,7,6]],
+		}
+		
+		try:
 			num_cells = int(data.GetNumberOfCells()) if hasattr(data, 'GetNumberOfCells') else 0
 		except Exception:
-			num_points, num_cells = 0, 0
-		if num_points == 0:
-			return [], [], [], {}
-		
-		converted_data = data
-		try:
-			cell_data = data.GetCellData() if hasattr(data, 'GetCellData') else None
-			has_cell_arrays = bool(cell_data) and cell_data.GetNumberOfArrays() > 0
-			if num_cells > 0 and has_cell_arrays:
-				from vtkmodules.vtkFiltersCore import vtkCellDataToPointData
-				converter = vtkCellDataToPointData()
-				converter.SetInputData(data)
-				converter.PassCellDataOn()
-				converter.Update()
-				converted_data = converter.GetOutput() or data
-		except Exception:
-			converted_data = data
-		
-		points = converted_data.GetPoints()
-		if points is None:
-			return [], [], [], {}
-		vertices = [points.GetPoint(i) for i in range(points.GetNumberOfPoints())]
-		
-		faces = []
-		edges = []
-		for i in range(converted_data.GetNumberOfCells() if hasattr(converted_data, 'GetNumberOfCells') else 0):
-			cell = converted_data.GetCell(i)
-			cell_type = cell.GetCellType()
-			if cell_type in [VTK_TRIANGLE, VTK_QUAD]:
-				face = [cell.GetPointId(j) for j in range(cell.GetNumberOfPoints())]
-				faces.append(face)
-			elif cell_type == VTK_TETRA:
-				for j in range(4):
-					face = [cell.GetPointId(k) for k in range(4) if k != j]
-					faces.append(face)
-			elif cell_type == VTK_HEXAHEDRON:
-				indices = [cell.GetPointId(j) for j in range(cell.GetNumberOfPoints())]
-				faces.append([indices[0], indices[1], indices[2], indices[3]])
-				faces.append([indices[4], indices[5], indices[6], indices[7]])
-				faces.append([indices[0], indices[1], indices[5], indices[4]])
-				faces.append([indices[1], indices[2], indices[6], indices[5]])
-				faces.append([indices[2], indices[3], indices[7], indices[6]])
-				faces.append([indices[3], indices[0], indices[4], indices[7]])
-			elif cell_type == VTK_WEDGE:
-				indices = [cell.GetPointId(j) for j in range(6)]
-				faces.append([indices[0], indices[1], indices[2]])
-				faces.append([indices[3], indices[4], indices[5]])
-				faces.append([indices[0], indices[1], indices[4], indices[3]])
-				faces.append([indices[1], indices[2], indices[5], indices[4]])
-				faces.append([indices[2], indices[0], indices[3], indices[5]])
-			elif cell_type == VTK_PYRAMID:
-				indices = [cell.GetPointId(j) for j in range(5)]
-				faces.append([indices[0], indices[1], indices[2], indices[3]])
-				faces.append([indices[0], indices[1], indices[4]])
-				faces.append([indices[1], indices[2], indices[4]])
-				faces.append([indices[2], indices[3], indices[4]])
-				faces.append([indices[3], indices[0], indices[4]])
-			elif cell_type == VTK_VOXEL:
-				indices = [cell.GetPointId(j) for j in range(8)]
-				faces.append([indices[0], indices[1], indices[3], indices[2]])
-				faces.append([indices[4], indices[5], indices[7], indices[6]])
-				faces.append([indices[0], indices[2], indices[6], indices[4]])
-				faces.append([indices[1], indices[3], indices[7], indices[5]])
-				faces.append([indices[0], indices[1], indices[5], indices[4]])
-				faces.append([indices[2], indices[3], indices[7], indices[6]])
-			elif cell_type == VTK_HEXAGONAL_PRISM:
-				indices = [cell.GetPointId(j) for j in range(12)]
-				faces.append([indices[0], indices[1], indices[2], indices[3], indices[4], indices[5]])
-				faces.append([indices[6], indices[7], indices[8], indices[9], indices[10], indices[11]])
-				for k in range(6):
-					faces.append([indices[k], indices[(k+1)%6], indices[((k+1)%6)+6], indices[k+6]])
-			elif cell_type in (VTK_LINE, VTK_POLYLINE):
-				num_points_cell = cell.GetNumberOfPoints()
-				if num_points_cell >= 2:
-					for j in range(num_points_cell - 1):
-						edges.append([cell.GetPointId(j), cell.GetPointId(j+1)])
-			elif cell_type == VTK_PENTAGONAL_PRISM:
-				indices = [cell.GetPointId(j) for j in range(10)]
-				faces.append([indices[0], indices[1], indices[2], indices[3], indices[4]])
-				faces.append([indices[5], indices[6], indices[7], indices[8], indices[9]])
-				for k in range(5):
-					faces.append([indices[k], indices[(k+1)%5], indices[((k+1)%5)+5], indices[k+5]])
-			elif cell_type == VTK_PIXEL:
-				indices = [cell.GetPointId(j) for j in range(4)]
-				faces.append([indices[0], indices[1], indices[3], indices[2]])
-			elif cell_type == VTK_POLYGON:
-				num_points_cell = cell.GetNumberOfPoints()
-				indices = [cell.GetPointId(j) for j in range(num_points_cell)]
-				faces.append(indices)
-			elif cell_type == VTK_POLYHEDRON:
-				num_faces = cell.GetNumberOfFaces()
+			num_cells = 0
+		cd = data.GetCellData()
+		for i in range(num_cells):
+			vtk_cell = data.GetCell(i)
+			cell_type = vtk_cell.GetCellType()
+			new_cell = VolumeCell()
+			volume_data.cells.append(new_cell)
+			if cd is not None:
+				for k in range(cd.GetNumberOfArrays()):
+					array = cd.GetArray(k)
+					name = array.GetName() or f"CellArray_{k}"
+					try:
+						val = array.GetTuple(i)
+					except Exception:
+						try:
+							val = (array.GetValue(i),)
+						except Exception:
+							val = (0.0,)
+					new_cell.attributes[name] = val
+			if cell_type == VTK_POLYHEDRON and hasattr(vtk_cell, 'GetNumberOfFaces'):
+				num_faces = vtk_cell.GetNumberOfFaces()
 				for k in range(num_faces):
-					face = cell.GetFace(k)
+					face = vtk_cell.GetFace(k)
 					face_indices = [face.GetPointId(j) for j in range(face.GetNumberOfPoints())]
-					faces.append(face_indices)
-			elif cell_type == VTK_POLY_VERTEX:
-				pass
-			elif cell_type == VTK_QUAD:
-				indices = [cell.GetPointId(j) for j in range(4)]
-				faces.append(indices)
-			elif cell_type == VTK_TRIANGLE_STRIP:
-				num_points_cell = cell.GetNumberOfPoints()
-				for k in range(num_points_cell - 2):
-					if k % 2 == 0:
-						faces.append([cell.GetPointId(k), cell.GetPointId(k+1), cell.GetPointId(k+2)])
-					else:
-						faces.append([cell.GetPointId(k+1), cell.GetPointId(k), cell.GetPointId(k+2)])
-			elif cell_type == VTK_VERTEX:
-				pass
-
+					self._process_face(volume_data, new_cell, face_indices)
+			elif cell_type in cell_definitions:
+				face_v_indices_list = cell_definitions[cell_type]
+				for face_v_indices in face_v_indices_list:
+					original_indices = [vtk_cell.GetPointId(j) for j in face_v_indices]
+					self._process_face(volume_data, new_cell, original_indices)
+			else:
+				continue
+		
 		point_data = {}
-		pd = converted_data.GetPointData()
-		# Optional component name map from UI (JSON)
-		# Example: {"Stress": ["XX", "YY", "ZZ", "XY", "YZ", "XZ"]}
-
+		pd = data.GetPointData()
 		try:
 			name_map = json.loads(getattr(self, 'component_name_map_json', '') or '{}')
 		except Exception:
@@ -307,7 +247,6 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 							comp_name = str(comp_raw).strip()
 					if preferred is not None:
 						comp_name = preferred[comp]
-					# Heuristic fallback when component names are missing
 					if comp_name == "":
 						labels_3 = ['X', 'Y', 'Z']
 						labels_6 = ['XX', 'YY', 'ZZ', 'XY', 'YZ', 'XZ']
@@ -320,45 +259,100 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 							comp_name = labels_9[comp]
 						else:
 							comp_name = str(comp)
-					comp_suffix = comp_name
 					component_values = []
 					for j in range(num_tuples):
 						component_values.append(array.GetComponent(j, comp))
-					point_data[f"{base_name}_{comp_suffix}"] = component_values
+					point_data[f"{base_name}_{comp_name}"] = component_values
 				magnitude_values = []
 				for j in range(num_tuples):
 					tup = array.GetTuple(j)
 					magnitude_values.append(math.sqrt(sum(v*v for v in tup)))
 				point_data[f"{base_name}_Magnitude"] = magnitude_values
 		
-		return vertices, edges, faces, point_data
+		return volume_data, point_data
 
-	def _create_mesh(self, context, vertices, edges, faces, point_data, name):
-		"""Create Blender mesh from VTK data."""
+	def _process_face(self, volume_data: VolumeMeshData, current_cell: VolumeCell, original_indices):
+		"""Create or link a face for the current cell, using a canonical key to share faces between neighbouring cells."""
+		face_key = tuple(sorted(original_indices))
+		if face_key in volume_data.face_map:
+			existing_face = volume_data.face_map[face_key]
+			existing_face.neighbour = current_cell
+			current_cell.faces.append(existing_face)
+		else:
+			vertex_objects = [volume_data.vertices[idx] for idx in original_indices]
+			new_face = VolumeFace(vertex_objects)
+			new_face.owner = current_cell
+			volume_data.face_map[face_key] = new_face
+			volume_data.faces.append(new_face)
+			current_cell.faces.append(new_face)
+
+	def _create_mesh(self, context, volume_data, point_data, name):
+		"""Create Blender mesh from the boundary faces of the in-memory volume model; assigns point and cell attributes."""
 		mesh = bpy.data.meshes.new(name)
 		obj = bpy.data.objects.new(name, mesh)
 		context.collection.objects.link(obj)
-		mesh.from_pydata(vertices, edges, faces)
+
+		blender_vertices = [v.co for v in volume_data.vertices]
+		for i, v_obj in enumerate(volume_data.vertices):
+			v_obj.blender_v_index = i
+
+		blender_faces = []
+		boundary_face_owner_index = []
+		for face_obj in volume_data.faces:
+			if face_obj.is_boundary():
+				owner_cell = face_obj.owner
+				face_vertices = face_obj.get_vertices_for_cell(owner_cell)
+				if not face_vertices:
+					continue
+				face_indices = [v.blender_v_index for v in face_vertices]
+				blender_faces.append(face_indices)
+				boundary_face_owner_index.append(owner_cell)
+				face_obj.blender_f_index = len(blender_faces) - 1
+
+		mesh.from_pydata(blender_vertices, [], blender_faces)
 		mesh.update()
-		for attr_name, attr_values in point_data.items():
+		try:
+			mesh.calc_normals_split()
+		except Exception:
+			try:
+				mesh.calc_normals()
+			except Exception:
+				pass
 
-			if len(attr_values) != len(vertices) or len(attr_values) == 0:
-				continue
-			first_value = attr_values[0]
-			safe_attr_name = attr_name
-			if isinstance(safe_attr_name, str) and safe_attr_name.strip().lower() == 'id':
-				safe_attr_name = 'id_attribute'
+		if point_data:
+			for attr_name, attr_values in point_data.items():
+				if len(attr_values) == len(blender_vertices):
+					attr = mesh.attributes.new(name=attr_name if attr_name.strip().lower() != 'id' else 'id_attribute', type='FLOAT', domain='POINT')
+					attr.data.foreach_set('value', attr_values)
 
-			if not isinstance(first_value, (tuple, list)):
-				float_attribute = mesh.attributes.new(name=safe_attr_name, type='FLOAT', domain='POINT')
-				for i, value in enumerate(attr_values):
-					float_attribute.data[i].value = float(value)
-			else:
-				component_count = len(first_value)
-				for comp_index in range(component_count):
-					comp_attr = mesh.attributes.new(name=f"{safe_attr_name}_{comp_index}", type='FLOAT', domain='POINT')
-					for i, value in enumerate(attr_values):
-						comp_attr.data[i].value = float(value[comp_index])
+		# Assign cell data to FACE domain attributes
+		if len(boundary_face_owner_index) > 0:
+			all_attr_names = set()
+			for cell in boundary_face_owner_index:
+				for k in cell.attributes.keys():
+					all_attr_names.add(k)
+			for attr_name in sorted(all_attr_names):
+				values = [0.0] * len(blender_faces)
+				for face_idx, cell in enumerate(boundary_face_owner_index):
+					val = cell.attributes.get(attr_name)
+					if val is None:
+						continue
+					try:
+						if isinstance(val, (list, tuple)):
+							values[face_idx] = float(val[0]) if len(val) > 0 else 0.0
+						else:
+							values[face_idx] = float(val)
+					except Exception:
+						values[face_idx] = 0.0
+				attr = mesh.attributes.new(name=f"cell_{attr_name}", type='FLOAT', domain='FACE')
+				attr.data.foreach_set('value', values)
+
+		# Persist the topology model for this object name
+		register_model(obj.name, volume_data)
+
+		if hasattr(obj, 'volume_mesh_info') and getattr(obj.volume_mesh_info, 'is_volume_mesh', None) is not None:
+			obj.volume_mesh_info.is_volume_mesh = True
+
 		return obj
 
 __all__ = ["ImportVTKAnimationOperator"] 
