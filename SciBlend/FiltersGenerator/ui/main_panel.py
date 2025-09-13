@@ -91,4 +91,19 @@ class FILTERSGENERATOR_PT_volume_filter(bpy.types.Panel):
         col.prop(s, "slice_object", text="Slicing Object")
         col.prop(s, "slice_invert")
 
-        layout.operator("filters.volume_update_material", text="Update Material", icon='SHADING_RENDERED') 
+        layout.operator("filters.volume_update_material", text="Update Material", icon='SHADING_RENDERED')
+
+
+class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
+    bl_label = "Geometry Filters"
+    bl_idname = "FILTERSGENERATOR_PT_geometry_filters"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = 'FILTERSGENERATOR_PT_main_panel'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box()
+        box.label(text="Threshold", icon='MOD_OPACITY')
+        box.operator("filters.apply_volume_threshold", text="Apply Threshold") 
