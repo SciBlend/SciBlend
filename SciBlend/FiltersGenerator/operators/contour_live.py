@@ -5,6 +5,16 @@ from ...operators.utils.volume_mesh_data import get_model
 from ..utils.on_demand_loader import ensure_model_for_object
 
 
+def _aggregate(values, mode: str) -> float:
+	if not values:
+		return 0.0
+	if mode == 'MIN':
+		return min(values)
+	if mode == 'MAX':
+		return max(values)
+	return sum(values) / float(len(values))
+
+
 def rebuild_contour_surface_for_settings(context, settings) -> Object | None:
 	"""Rebuild or create a contour surface object by detecting isosurface crossings using crinkle clip semantics."""
 	src_obj = getattr(settings, 'target_object', None)
@@ -14,29 +24,61 @@ def rebuild_contour_surface_for_settings(context, settings) -> Object | None:
 	if not attr_name or attr_name == 'NONE':
 		return None
 	iso_value = float(getattr(settings, 'iso_value', 0.0))
+	domain = getattr(settings, 'domain', 'CELL')
+	agg = getattr(settings, 'aggregator', 'MEAN')
 	model = get_model(src_obj.name) or ensure_model_for_object(context, src_obj)
 	if not model or not getattr(model, 'cells', None) or not getattr(model, 'faces', None):
 		return None
+
+	cell_scalar = {}
+	if domain == 'CELL':
+		for cell in model.cells:
+			val_tuple = getattr(cell, 'attributes', {}).get(attr_name)
+			if val_tuple is None:
+				continue
+			try:
+				cell_scalar[cell] = float(val_tuple[0]) if isinstance(val_tuple, (list, tuple)) else float(val_tuple)
+			except Exception:
+				continue
+	else:
+		mesh_attr = None
+		try:
+			mesh_attr = src_obj.data.attributes.get(attr_name)
+		except Exception:
+			mesh_attr = None
+		if not mesh_attr or getattr(mesh_attr, 'domain', '') not in {'POINT', 'VERTEX'} or getattr(mesh_attr, 'data_type', '') != 'FLOAT':
+			return None
+		vals = []
+		try:
+			vals = [0.0] * len(src_obj.data.vertices)
+			mesh_attr.data.foreach_get('value', vals)
+		except Exception:
+			vals = []
+		if not vals:
+			return None
+		for cell in model.cells:
+			pv = []
+			for face in getattr(cell, 'faces', []) or []:
+				for v in getattr(face, 'vertices', []) or []:
+					idx = getattr(v, 'blender_v_index', -1)
+					if 0 <= idx < len(vals):
+						pv.append(float(vals[idx]))
+			if not pv:
+				continue
+			cell_scalar[cell] = _aggregate(pv, agg)
 
 	faces_to_create = []
 	owner_cells = []
 	for face in getattr(model, 'faces', []):
 		owner = getattr(face, 'owner', None)
-		neighbour = getattr(face, 'neighbour', None)
-		if not owner or not neighbour:
+		neigh = getattr(face, 'neighbour', None)
+		if not owner or not neigh:
 			continue
-		try:
-			v_owner_tuple = getattr(owner, 'attributes', {}).get(attr_name)
-			v_neigh_tuple = getattr(neighbour, 'attributes', {}).get(attr_name)
-			if v_owner_tuple is None or v_neigh_tuple is None:
-				continue
-			v_owner = float(v_owner_tuple[0]) if isinstance(v_owner_tuple, (list, tuple)) else float(v_owner_tuple)
-			v_neigh = float(v_neigh_tuple[0]) if isinstance(v_neigh_tuple, (list, tuple)) else float(v_neigh_tuple)
-		except Exception:
+		vo = cell_scalar.get(owner, None)
+		vn = cell_scalar.get(neigh, None)
+		if vo is None or vn is None:
 			continue
-		# select faces where values straddle the iso (one side below, other above)
-		if (v_owner < iso_value and v_neigh > iso_value) or (v_owner > iso_value and v_neigh < iso_value):
-			# Use orientation w.r.t. the owner cell for consistent winding
+		if (vo < iso_value and vn > iso_value) or (vo > iso_value and vn < iso_value) or vo == iso_value or vn == iso_value:
 			verts_for_owner = getattr(face, 'get_vertices_for_cell', lambda c: None)(owner)
 			if not verts_for_owner:
 				continue
