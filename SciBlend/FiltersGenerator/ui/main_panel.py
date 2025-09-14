@@ -113,6 +113,11 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
         else:
             col = box.column(align=True)
             col.prop(s, "target_object", text="Domain Mesh")
+            row = col.row(align=True)
+            row.prop(s, "domain", text="Domain")
+            if getattr(s, 'domain', 'CELL') == 'POINT':
+                row = col.row(align=True)
+                row.prop(s, "aggregator", text="Aggregator")
             col.prop(s, "attribute", text="Attribute")
             row = col.row(align=True)
             row.prop(s, "min_value")
@@ -127,6 +132,11 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
         else:
             col = box.column(align=True)
             col.prop(c, "target_object", text="Domain Mesh")
+            row = col.row(align=True)
+            row.prop(c, "domain", text="Domain")
+            if getattr(c, 'domain', 'CELL') == 'POINT':
+                row = col.row(align=True)
+                row.prop(c, "aggregator", text="Aggregator")
             col.prop(c, "attribute", text="Attribute")
             col.prop(c, "iso_value", text="Iso Value")
             col.operator("filters.build_contour_surface", text="Build/Update", icon='MESH_DATA')
