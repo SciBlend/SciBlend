@@ -89,6 +89,12 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				self.report({'ERROR'}, f"Failed to read file {file_elem.name}: No vertices found.")
 				continue
 			obj = self._create_mesh(context, volume_data, point_data, f"Frame_{frame}")
+			try:
+				obj["sciblend_volume_source_dir"] = self.directory or ""
+				obj["sciblend_volume_source_file"] = file_elem.name or ""
+				obj["sciblend_volume_format"] = os.path.splitext(filepath)[1].lower()
+			except Exception:
+				pass
 			rotation = axis_conversion(from_forward='-Z', from_up='Y', to_forward=self.axis_forward, to_up=self.axis_up).to_4x4()
 			scale = mathutils.Matrix.Scale(self.scale_factor, 4)
 			obj.matrix_world = rotation @ scale

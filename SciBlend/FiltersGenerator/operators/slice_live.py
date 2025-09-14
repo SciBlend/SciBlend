@@ -3,6 +3,7 @@ from bpy.types import Object, Mesh
 from bpy.props import StringProperty
 from mathutils import Vector
 from ...operators.utils.volume_mesh_data import get_model
+from ..utils.on_demand_loader import ensure_model_for_object
 from .clip_live import _ensure_clip_plane_for_object
 
 
@@ -24,7 +25,7 @@ def rebuild_slice_surface_for_settings(context, settings) -> Object | None:
 	normal = (mw_p.to_3x3() @ normal).normalized()
 	point_on_plane = mw_p.translation.copy()
 
-	model = get_model(src_obj.name)
+	model = get_model(src_obj.name) or ensure_model_for_object(context, src_obj)
 	if not model or not getattr(model, 'cells', None) or not getattr(model, 'faces', None):
 		return None
 

@@ -503,6 +503,21 @@ class VolumeMeshInfo(bpy.types.PropertyGroup):
     """Metadata for objects created from a managed volumetric mesh."""
     is_volume_mesh: bpy.props.BoolProperty(default=False)
 
+class SCIBLEND_OT_clear_on_demand_cache(bpy.types.Operator):
+    bl_idname = "sciblend.clear_on_demand_cache"
+    bl_label = "Clear On-demand Volume Cache"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        try:
+            from .FiltersGenerator.utils.on_demand_loader import clear_on_demand_cache
+            clear_on_demand_cache()
+            self.report({'INFO'}, "On-demand cache cleared")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to clear cache: {e}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
 class SciBlendPanel(bpy.types.Panel):
     bl_label = "Advanced Core"
     bl_idname = "OBJECT_PT_sciblend"
@@ -582,6 +597,14 @@ class SciBlendPanel(bpy.types.Panel):
             row.operator("gob.refresh_from_paraview", text="Refresh", icon='FILE_REFRESH')
             row.operator("gob.disconnect_from_paraview", text="Disconnect", icon='UNLINKED')
 
+        box = layout.box()
+        box.label(text="On-demand Volume Topology", icon='OUTLINER_DATA_VOLUME')
+        col = box.column(align=True)
+        col.prop(context.scene, "on_demand_volume_enabled", text="Enabled")
+        col.prop(context.scene, "on_demand_data_root", text="Data Root")
+        col.prop(context.scene, "on_demand_max_cached", text="Max Cached Models")
+        col.operator("sciblend.clear_on_demand_cache", text="Clear Cache", icon='TRASH')
+
 classes = (
     ImportX3DOperator,
     ImportVTKAnimationOperator,
@@ -607,7 +630,8 @@ classes = (
     X3DImportSettings,
     VolumeMeshInfo,
     SciBlendPanel,
-    SciBlendPreferences
+    SciBlendPreferences,
+    SCIBLEND_OT_clear_on_demand_cache
 ) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes + filters_classes
 
 def register():
@@ -637,6 +661,9 @@ def register():
     )
     bpy.types.Scene.gob_settings = bpy.props.PointerProperty(type=GOBSettings)
     bpy.types.Object.volume_mesh_info = bpy.props.PointerProperty(type=VolumeMeshInfo)
+    bpy.types.Scene.on_demand_volume_enabled = bpy.props.BoolProperty(name="On-demand Volume Topology", default=False)
+    bpy.types.Scene.on_demand_data_root = bpy.props.StringProperty(name="Data Root", default="", subtype='DIR_PATH')
+    bpy.types.Scene.on_demand_max_cached = bpy.props.IntProperty(name="Max Cached Models", default=4, min=0, soft_max=32)
 
     if LEGEND_AVAILABLE:
         bpy.types.Scene.legend_settings = bpy.props.PointerProperty(type=LegendSettings)
@@ -712,6 +739,12 @@ def unregister():
             del bpy.types.Object.camera_range
     if hasattr(bpy.types.Object, 'volume_mesh_info'):
         del bpy.types.Object.volume_mesh_info
+    if hasattr(bpy.types.Scene, 'on_demand_volume_enabled'):
+        del bpy.types.Scene.on_demand_volume_enabled
+    if hasattr(bpy.types.Scene, 'on_demand_data_root'):
+        del bpy.types.Scene.on_demand_data_root
+    if hasattr(bpy.types.Scene, 'on_demand_max_cached'):
+        del bpy.types.Scene.on_demand_max_cached
     if hasattr(bpy.types.Scene, 'filters_emitter_settings'):
         del bpy.types.Scene.filters_emitter_settings
     if hasattr(bpy.types.Scene, 'filters_volume_settings'):
