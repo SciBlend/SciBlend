@@ -2,6 +2,7 @@ import bpy
 from bpy.types import Object, Mesh
 from bpy.props import StringProperty
 from ...operators.utils.volume_mesh_data import get_model
+from ..utils.on_demand_loader import ensure_model_for_object
 
 
 def rebuild_contour_surface_for_settings(context, settings) -> Object | None:
@@ -13,7 +14,7 @@ def rebuild_contour_surface_for_settings(context, settings) -> Object | None:
 	if not attr_name or attr_name == 'NONE':
 		return None
 	iso_value = float(getattr(settings, 'iso_value', 0.0))
-	model = get_model(src_obj.name)
+	model = get_model(src_obj.name) or ensure_model_for_object(context, src_obj)
 	if not model or not getattr(model, 'cells', None) or not getattr(model, 'faces', None):
 		return None
 

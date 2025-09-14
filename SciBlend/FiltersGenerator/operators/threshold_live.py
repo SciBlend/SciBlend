@@ -2,6 +2,7 @@ import bpy
 from bpy.types import Object, Mesh
 from bpy.props import StringProperty
 from ...operators.utils.volume_mesh_data import get_model
+from ..utils.on_demand_loader import ensure_model_for_object
 
 
 def rebuild_threshold_surface_for_settings(context, settings) -> Object | None:
@@ -19,7 +20,7 @@ def rebuild_threshold_surface_for_settings(context, settings) -> Object | None:
 		return None
 	min_v = float(getattr(settings, 'min_value', 0.0))
 	max_v = float(getattr(settings, 'max_value', 1.0))
-	model = get_model(src_obj.name)
+	model = get_model(src_obj.name) or ensure_model_for_object(context, src_obj)
 	if not model or not getattr(model, 'cells', None):
 		return None
 

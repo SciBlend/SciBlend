@@ -1,18 +1,15 @@
 import bpy
 from bpy.props import PointerProperty, FloatProperty, BoolProperty, EnumProperty
 from ...operators.utils.volume_mesh_data import get_model
+from ..utils.on_demand_loader import ensure_model_for_object
 
 
 def _cell_attribute_items(self, context):
-	"""Enumerate available cell attributes from the registered volume model of the selected object.
-
-	Returns a list of (identifier, name, description) for EnumProperty.
-	If no object or model is available, returns a placeholder entry.
-	"""
+	"""Enumerate available cell attributes from the registered or on-demand volume model for the selected object."""
 	obj = getattr(self, 'target_object', None)
 	if not obj or getattr(obj, 'type', None) != 'MESH':
 		return [("NONE", "(select a volumetric mesh)", "")]
-	model = get_model(obj.name)
+	model = get_model(obj.name) or ensure_model_for_object(context, obj)
 	if not model or not getattr(model, 'cells', None):
 		return [("NONE", "(no volume data)", "")] 
 	try:

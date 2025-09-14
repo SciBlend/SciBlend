@@ -1,6 +1,7 @@
 import bpy
 from bpy.props import PointerProperty, FloatProperty, BoolProperty, EnumProperty
 from ...operators.utils.volume_mesh_data import get_model
+from ..utils.on_demand_loader import ensure_model_for_object
 
 
 def _cell_attribute_items(self, context):
@@ -12,7 +13,7 @@ def _cell_attribute_items(self, context):
 	obj = getattr(self, 'target_object', None)
 	if not obj or getattr(obj, 'type', None) != 'MESH':
 		return [("NONE", "(select a volumetric mesh)", "")]
-	model = get_model(obj.name)
+	model = get_model(obj.name) or ensure_model_for_object(context, obj)
 	if not model or not getattr(model, 'cells', None):
 		return [("NONE", "(no volume data)", "")] 
 	try:
