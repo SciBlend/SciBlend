@@ -166,4 +166,24 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
         row.prop(cl, "plane_object", text="Clip Plane")
         row.operator("filters.clip_ensure_plane", text="Ensure", icon='MESH_PLANE')
         col.prop(cl, "side", text="Side")
-        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA') 
+        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA')
+
+        box = layout.box()
+        box.label(text="Calculator", icon='DRIVER')
+        k = getattr(context.scene, "filters_calculator_settings", None)
+        if not k:
+            box.label(text="Calculator settings unavailable", icon='ERROR')
+        else:
+            col = box.column(align=True)
+            col.prop(k, "target_object", text="Domain Mesh")
+            col.prop(k, "domain", text="Domain")
+            col.prop(k, "output_name", text="Output")
+            col.prop(k, "expression", text="Expression")
+            # Variable helper
+            row = col.row(align=True)
+            row.prop(k, "variable_enum", text="Attributes")
+            row.operator("filters.calculator_append_attr", text="Append", icon='ADD')
+            row = col.row(align=True)
+            row.prop(k, "function_enum", text="Functions")
+            row.operator("filters.calculator_append_func", text="Append", icon='ADD')
+            col.operator("filters.calculator_apply", text="Apply", icon='CHECKMARK') 

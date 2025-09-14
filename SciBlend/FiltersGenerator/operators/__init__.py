@@ -7,6 +7,7 @@ from .threshold_live import FILTERS_OT_build_threshold_surface
 from .contour_live import FILTERS_OT_build_contour_surface
 from .clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surface
 from .slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
+from .calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
 import bpy
 
 
@@ -23,9 +24,17 @@ def register():
 	bpy.utils.register_class(FILTERS_OT_build_clip_surface)
 	bpy.utils.register_class(FILTERS_OT_slice_ensure_plane)
 	bpy.utils.register_class(FILTERS_OT_build_slice_surface)
+	bpy.utils.register_class(FILTERS_OT_calculator_apply)
+	bpy.utils.register_class(FILTERS_OT_calculator_append_var)
+	bpy.utils.register_class(FILTERS_OT_calculator_append_attr)
+	bpy.utils.register_class(FILTERS_OT_calculator_append_func)
 
 
 def unregister():
+	bpy.utils.unregister_class(FILTERS_OT_calculator_append_func)
+	bpy.utils.unregister_class(FILTERS_OT_calculator_append_attr)
+	bpy.utils.unregister_class(FILTERS_OT_calculator_append_var)
+	bpy.utils.unregister_class(FILTERS_OT_calculator_apply)
 	bpy.utils.unregister_class(FILTERS_OT_build_slice_surface)
 	bpy.utils.unregister_class(FILTERS_OT_slice_ensure_plane)
 	bpy.utils.unregister_class(FILTERS_OT_build_clip_surface)
