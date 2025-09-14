@@ -392,12 +392,18 @@ try:
     from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
     from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
     from .FiltersGenerator.properties.threshold_settings import FiltersThresholdSettings
+    from .FiltersGenerator.properties.contour_settings import FiltersContourSettings
+    from .FiltersGenerator.properties.clip_settings import FiltersClipSettings
+    from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
     from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
     from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
     from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
     from .FiltersGenerator.operators.volume_import import FILTERS_OT_volume_import_vdb_sequence
     from .FiltersGenerator.operators.volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range
     from .FiltersGenerator.operators.threshold_live import FILTERS_OT_build_threshold_surface
+    from .FiltersGenerator.operators.contour_live import FILTERS_OT_build_contour_surface
+    from .FiltersGenerator.operators.clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surface
+    from .FiltersGenerator.operators.slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
@@ -407,6 +413,9 @@ try:
         FiltersEmitterSettings,
         VolumeRenderingSettings,
         FiltersThresholdSettings,
+        FiltersContourSettings,
+        FiltersClipSettings,
+        FiltersSliceSettings,
         FILTERS_OT_create_emitter,
         FILTERS_OT_place_emitter,
         FILTERS_OT_generate_streamline,
@@ -414,6 +423,11 @@ try:
         FILTERS_OT_volume_update_material,
         FILTERS_OT_volume_compute_range,
         FILTERS_OT_build_threshold_surface,
+        FILTERS_OT_build_contour_surface,
+        FILTERS_OT_clip_ensure_plane,
+        FILTERS_OT_build_clip_surface,
+        FILTERS_OT_slice_ensure_plane,
+        FILTERS_OT_build_slice_surface,
         FILTERSGENERATOR_PT_main_panel,
         FILTERSGENERATOR_PT_stream_tracers,
         FILTERSGENERATOR_PT_volume_filter,
@@ -651,9 +665,15 @@ def register():
         from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
         from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
         from .FiltersGenerator.properties.threshold_settings import FiltersThresholdSettings
+        from .FiltersGenerator.properties.contour_settings import FiltersContourSettings
+        from .FiltersGenerator.properties.clip_settings import FiltersClipSettings
+        from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
         bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
         bpy.types.Scene.filters_volume_settings = bpy.props.PointerProperty(type=VolumeRenderingSettings)
         bpy.types.Scene.filters_threshold_settings = bpy.props.PointerProperty(type=FiltersThresholdSettings)
+        bpy.types.Scene.filters_contour_settings = bpy.props.PointerProperty(type=FiltersContourSettings)
+        bpy.types.Scene.filters_clip_settings = bpy.props.PointerProperty(type=FiltersClipSettings)
+        bpy.types.Scene.filters_slice_settings = bpy.props.PointerProperty(type=FiltersSliceSettings)
 
 
 def unregister():
@@ -698,6 +718,12 @@ def unregister():
         del bpy.types.Scene.filters_volume_settings
     if hasattr(bpy.types.Scene, 'filters_threshold_settings'):
         del bpy.types.Scene.filters_threshold_settings
+    if hasattr(bpy.types.Scene, 'filters_contour_settings'):
+        del bpy.types.Scene.filters_contour_settings
+    if hasattr(bpy.types.Scene, 'filters_clip_settings'):
+        del bpy.types.Scene.filters_clip_settings
+    if hasattr(bpy.types.Scene, 'filters_slice_settings'):
+        del bpy.types.Scene.filters_slice_settings
 
 if __name__ == "__main__":
     register()
