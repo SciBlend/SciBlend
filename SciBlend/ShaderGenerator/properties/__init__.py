@@ -1,0 +1,1 @@
+"""Properties subpackage for Shader Generator (property groups and scene bindings).""" 

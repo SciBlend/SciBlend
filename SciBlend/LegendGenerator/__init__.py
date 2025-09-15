@@ -17,6 +17,7 @@ from .operators.choose_shader import LEGEND_OT_choose_shader, update_legend_from
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 
 def _safe_log_info(message: str) -> None:
@@ -49,7 +50,7 @@ def update_nodes(self, context):
     if new_num_nodes > current_num_nodes:
         for i in range(current_num_nodes, new_num_nodes):
             new_color = scene.colors_values.add()
-            new_color.color = (1.0, 1.0, 1.0)  
+            new_color.color = (1.0, 1.0, 1.0)
             new_color.value = f"{i/(new_num_nodes-1):.2f}"
     elif new_num_nodes < current_num_nodes:
         for i in range(current_num_nodes - new_num_nodes):
@@ -158,13 +159,14 @@ def _debounced_generate_overlay():
     try:
         now = time.monotonic()
         if now - _last_change_time < _DEBOUNCE_SEC:
-            return 0.1  
+            return 0.1
         try:
             sc = getattr(bpy.context, 'scene', None)
             if sc and getattr(sc.legend_settings, 'legend_enabled', True):
                 bpy.ops.compositor.png_overlay()
         except Exception as e:
             _safe_log_exception("Failed to invoke png_overlay (debounced)", e)
+
         return None
     finally:
         _timer_running = False
@@ -187,11 +189,17 @@ def _auto_update_legend(scene):
         _prev_signature = None
         return
     
+    if _processing_auto:
+        return
+
     obj = getattr(bpy.context.view_layer.objects, 'active', None)
     obj = obj or getattr(bpy.context, 'active_object', None)
     current = obj.name if obj else None
     signature = _build_shader_signature(obj) if obj else None
-    logger.debug(f"Depsgraph: active='{current}' prev='{_prev_obj_name}' sig='{signature}' prev_sig='{_prev_signature}'")
+    try:
+        logger.debug(f"Depsgraph: active='{current}' prev='{_prev_obj_name}' sig='{signature}' prev_sig='{_prev_signature}'")
+    except Exception:
+        pass
     if obj and signature != _prev_signature:
         _processing_auto = True
         try:
@@ -223,6 +231,7 @@ def _depsgraph_handler(dummy):
             _auto_update_legend(sc)
     except Exception as e:
         _safe_log_exception("Depsgraph handler error", e)
+
 
 
 def register():

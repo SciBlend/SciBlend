@@ -1,0 +1,1 @@
+"""Operators subpackage for Shader Generator (colorramp and material).""" 
