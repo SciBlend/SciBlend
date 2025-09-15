@@ -104,6 +104,86 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+
         box = layout.box()
-        box.label(text="Threshold", icon='MOD_OPACITY')
-        box.operator("filters.apply_volume_threshold", text="Apply Threshold") 
+        box.label(text="Threshold (closed surface)", icon='MESH_DATA')
+        s = getattr(context.scene, "filters_threshold_settings", None)
+        if not s:
+            box.label(text="Threshold settings unavailable", icon='ERROR')
+        else:
+            col = box.column(align=True)
+            col.prop(s, "target_object", text="Domain Mesh")
+            row = col.row(align=True)
+            row.prop(s, "domain", text="Domain")
+            if getattr(s, 'domain', 'CELL') == 'POINT':
+                row = col.row(align=True)
+                row.prop(s, "aggregator", text="Aggregator")
+            col.prop(s, "attribute", text="Attribute")
+            row = col.row(align=True)
+            row.prop(s, "min_value")
+            row.prop(s, "max_value")
+            col.operator("filters.build_threshold_surface", text="Build/Update", icon='MESH_DATA')
+
+        box = layout.box()
+        box.label(text="Contour (isosurface)", icon='MESH_DATA')
+        c = getattr(context.scene, "filters_contour_settings", None)
+        if not c:
+            box.label(text="Contour settings unavailable", icon='ERROR')
+        else:
+            col = box.column(align=True)
+            col.prop(c, "target_object", text="Domain Mesh")
+            row = col.row(align=True)
+            row.prop(c, "domain", text="Domain")
+            if getattr(c, 'domain', 'CELL') == 'POINT':
+                row = col.row(align=True)
+                row.prop(c, "aggregator", text="Aggregator")
+            col.prop(c, "attribute", text="Attribute")
+            col.prop(c, "iso_value", text="Iso Value")
+            col.operator("filters.build_contour_surface", text="Build/Update", icon='MESH_DATA')
+
+        box = layout.box()
+        box.label(text="Slice (plane)", icon='MESH_DATA')
+        sl = getattr(context.scene, "filters_slice_settings", None)
+        if not sl:
+            box.label(text="Slice settings unavailable", icon='ERROR')
+        else:
+            col = box.column(align=True)
+            col.prop(sl, "target_object", text="Domain Mesh")
+            row = col.row(align=True)
+            row.prop(sl, "plane_object", text="Slice Plane")
+            row.operator("filters.slice_ensure_plane", text="Ensure", icon='MESH_PLANE')
+            col.operator("filters.build_slice_surface", text="Build/Update", icon='MESH_DATA')
+
+        box = layout.box()
+        box.label(text="Clip (plane)", icon='MESH_DATA')
+        cl = getattr(context.scene, "filters_clip_settings", None)
+        if not cl:
+            box.label(text="Clip settings unavailable", icon='ERROR')
+            return
+        col = box.column(align=True)
+        col.prop(cl, "target_object", text="Domain Mesh")
+        row = col.row(align=True)
+        row.prop(cl, "plane_object", text="Clip Plane")
+        row.operator("filters.clip_ensure_plane", text="Ensure", icon='MESH_PLANE')
+        col.prop(cl, "side", text="Side")
+        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA')
+
+        box = layout.box()
+        box.label(text="Calculator", icon='DRIVER')
+        k = getattr(context.scene, "filters_calculator_settings", None)
+        if not k:
+            box.label(text="Calculator settings unavailable", icon='ERROR')
+        else:
+            col = box.column(align=True)
+            col.prop(k, "target_object", text="Domain Mesh")
+            col.prop(k, "domain", text="Domain")
+            col.prop(k, "output_name", text="Output")
+            col.prop(k, "expression", text="Expression")
+            # Variable helper
+            row = col.row(align=True)
+            row.prop(k, "variable_enum", text="Attributes")
+            row.operator("filters.calculator_append_attr", text="Append", icon='ADD')
+            row = col.row(align=True)
+            row.prop(k, "function_enum", text="Functions")
+            row.operator("filters.calculator_append_func", text="Append", icon='ADD')
+            col.operator("filters.calculator_apply", text="Apply", icon='CHECKMARK') 

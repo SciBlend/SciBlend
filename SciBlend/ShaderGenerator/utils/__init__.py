@@ -1,0 +1,1 @@
+"""Utility subpackage for Shader Generator (colormaps, attributes).""" 
