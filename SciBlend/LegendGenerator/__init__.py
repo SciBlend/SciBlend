@@ -17,6 +17,7 @@ from .operators.choose_shader import LEGEND_OT_choose_shader, update_legend_from
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 
 def update_nodes(self, context):
@@ -27,7 +28,7 @@ def update_nodes(self, context):
     if new_num_nodes > current_num_nodes:
         for i in range(current_num_nodes, new_num_nodes):
             new_color = scene.colors_values.add()
-            new_color.color = (1.0, 1.0, 1.0)  
+            new_color.color = (1.0, 1.0, 1.0)
             new_color.value = f"{i/(new_num_nodes-1):.2f}"
     elif new_num_nodes < current_num_nodes:
         for i in range(current_num_nodes - new_num_nodes):
@@ -136,13 +137,16 @@ def _debounced_generate_overlay():
     try:
         now = time.monotonic()
         if now - _last_change_time < _DEBOUNCE_SEC:
-            return 0.1  
+            return 0.1
         try:
             sc = getattr(bpy.context, 'scene', None)
             if sc and getattr(sc.legend_settings, 'legend_enabled', True):
                 bpy.ops.compositor.png_overlay()
         except Exception as e:
-            logger.exception("Failed to invoke png_overlay (debounced)", exc_info=e)
+            try:
+                logger.exception("Failed to invoke png_overlay (debounced)", exc_info=e)
+            except Exception:
+                pass
         return None
     finally:
         _timer_running = False
@@ -162,16 +166,25 @@ def _auto_update_legend(scene):
         _prev_signature = None
         return
     
+    if _processing_auto:
+        return
+
     obj = getattr(bpy.context.view_layer.objects, 'active', None)
     obj = obj or getattr(bpy.context, 'active_object', None)
     current = obj.name if obj else None
     signature = _build_shader_signature(obj) if obj else None
-    logger.debug(f"Depsgraph: active='{current}' prev='{_prev_obj_name}' sig='{signature}' prev_sig='{_prev_signature}'")
+    try:
+        logger.debug(f"Depsgraph: active='{current}' prev='{_prev_obj_name}' sig='{signature}' prev_sig='{_prev_signature}'")
+    except Exception:
+        pass
     if obj and signature != _prev_signature:
         _processing_auto = True
         try:
             ok = update_legend_from_shader(scene, obj)
-            logger.info(f"update_legend_from_shader ok={ok}")
+            try:
+                logger.info(f"update_legend_from_shader ok={ok}")
+            except Exception:
+                pass
             _prev_obj_name = current
             _prev_signature = signature
             _last_change_time = time.monotonic()
@@ -181,9 +194,15 @@ def _auto_update_legend(scene):
                     bpy.app.timers.register(_debounced_generate_overlay, first_interval=_DEBOUNCE_SEC)
                 except Exception as e:
                     _timer_running = False
-                    logger.exception("Failed to register debounce timer", exc_info=e)
+                    try:
+                        logger.exception("Failed to register debounce timer", exc_info=e)
+                    except Exception:
+                        pass
         except Exception as e:
-            logger.exception("Error updating legend from shader", exc_info=e)
+            try:
+                logger.exception("Error updating legend from shader", exc_info=e)
+            except Exception:
+                pass
         finally:
             _processing_auto = False
 
@@ -194,7 +213,10 @@ def _depsgraph_handler(dummy):
         if sc:
             _auto_update_legend(sc)
     except Exception as e:
-        logger.exception("Depsgraph handler error", exc_info=e)
+        try:
+            logger.exception("Depsgraph handler error", exc_info=e)
+        except Exception:
+            pass
 
 
 def register():

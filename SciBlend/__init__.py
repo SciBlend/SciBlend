@@ -128,7 +128,7 @@ try:
         MATERIAL_OT_create_shader,
         MATERIAL_PT_shader_generator,
     )
-    # Align Shader Generator panel category to SciBlend
+    from .ShaderGenerator.properties.settings import ShaderGeneratorSettings
     MATERIAL_PT_shader_generator.bl_category = 'SciBlend'
     MATERIAL_PT_shader_generator.bl_options = {'DEFAULT_CLOSED'}
     SHADER_AVAILABLE = True
@@ -141,6 +141,7 @@ try:
         COLORRAMP_OT_import_json,
         MATERIAL_OT_create_shader,
         MATERIAL_PT_shader_generator,
+        ShaderGeneratorSettings,
     )
 except ImportError:
     class ShaderGeneratorPanelStub(bpy.types.Panel):
@@ -630,6 +631,7 @@ def register():
 
     if SHADER_AVAILABLE:
         bpy.types.Scene.custom_colorramp = bpy.props.CollectionProperty(type=ColorRampColor)
+        bpy.types.Scene.shader_generator_settings = bpy.props.PointerProperty(type=ShaderGeneratorSettings)
 
     if GRID_AVAILABLE:
         bpy.types.Scene.grid_settings = bpy.props.PointerProperty(type=GridSettings)
@@ -674,6 +676,8 @@ def unregister():
         del bpy.types.Scene.legend_settings
     if hasattr(bpy.types.Scene, 'custom_colorramp'):
         del bpy.types.Scene.custom_colorramp
+    if hasattr(bpy.types.Scene, 'shader_generator_settings'):
+        del bpy.types.Scene.shader_generator_settings
     if hasattr(bpy.types.Scene, 'grid_settings'):
         del bpy.types.Scene.grid_settings
     if hasattr(bpy.types.Scene, 'annotation_properties'):
