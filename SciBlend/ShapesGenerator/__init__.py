@@ -5,12 +5,15 @@ from bpy.types import PropertyGroup, Operator, UIList, Panel
 from .operators.png_overlay import SHAPESGENERATOR_OT_UpdateShapes, SHAPESGENERATOR_OT_NewShape, SHAPESGENERATOR_OT_DeleteShape
 from .ui.png_overlay_panel import SHAPESGENERATOR_PT_Panel, SHAPESGENERATOR_UL_List
 from .operators.custom_shape_importer import SHAPESGENERATOR_OT_ImportCustomShape
+from .properties.graph_mixins import enum_float_attributes
+
 
 def update_shape(self, context):
     try:
         bpy.ops.shapesgenerator.update_shapes()
     except Exception as e:
         print(f"Error updating shapes: {str(e)}")
+
 
 def update_linked_dimension(self, context):
     if self.link_dimensions:
@@ -26,17 +29,20 @@ def update_linked_dimension(self, context):
         self["_updating"] = False
     update_shape(self, context)
 
+
 def update_dimension_x(self, context):
     if not self.get("_original_x"):
         self["_original_x"] = self.dimension_x
     self["_last_updated"] = "x"
     update_linked_dimension(self, context)
 
+
 def update_dimension_y(self, context):
     if not self.get("_original_y"):
         self["_original_y"] = self.dimension_y
     self["_last_updated"] = "y"
     update_linked_dimension(self, context)
+
 
 class ShapesGeneratorItem(PropertyGroup):
     name: StringProperty(default="Shape")
@@ -50,7 +56,8 @@ class ShapesGeneratorItem(PropertyGroup):
             ('ELLIPSE', "Ellipse", "Ellipse shape"),
             ('TEXT', "Text", "Text"),
             ('LATEX', "LaTeX", "LaTeX formula"),
-            ('CUSTOM', "Custom", "Custom imported shape"),  # Nueva opción
+            ('CUSTOM', "Custom", "Custom imported shape"),
+            ('GRAPH', "Graph", "Matplotlib graph from attributes"),
         ],
         default='ARROW',
         update=update_shape
@@ -109,16 +116,16 @@ class ShapesGeneratorItem(PropertyGroup):
     position_x: FloatProperty(
         name="X Position",
         default=0.0,
-        min=-2.0,  
-        max=2.0,   
+        min=-2.0,
+        max=2.0,
         description="Horizontal position of the shape",
         update=update_shape
     )
     position_y: FloatProperty(
         name="Y Position",
         default=0.0,
-        min=-2.0,  
-        max=2.0,  
+        min=-2.0,
+        max=2.0,
         description="Vertical position of the shape",
         update=update_shape
     )
@@ -219,6 +226,29 @@ class ShapesGeneratorItem(PropertyGroup):
         update=update_shape
     )
 
+    graph_type: EnumProperty(
+        name="Graph Type",
+        items=[
+            ('HIST', "Histogram", "Histogram of selected attribute"),
+            ('BOX', "Box Plot", "Box plot of one or more attributes"),
+        ],
+        default='HIST',
+        update=update_shape
+    )
+    graph_object: PointerProperty(type=bpy.types.Object, name="Source Object")
+    graph_attribute: EnumProperty(name="Attribute A", items=enum_float_attributes, update=update_shape)
+    graph_attribute_b: EnumProperty(name="Attribute B", items=enum_float_attributes, update=update_shape)
+    graph_bins: IntProperty(name="Bins", default=30, min=1, update=update_shape)
+    graph_title: StringProperty(name="Title", default="", update=update_shape)
+    graph_xlabel: StringProperty(name="X Label", default="", update=update_shape)
+    graph_ylabel: StringProperty(name="Y Label", default="", update=update_shape)
+    graph_color: FloatVectorProperty(name="Color", subtype='COLOR', size=4, default=(0.2, 0.4, 0.8, 0.8), min=0.0, max=1.0, update=update_shape)
+    graph_edgecolor: FloatVectorProperty(name="Edge", subtype='COLOR', size=4, default=(0.0, 0.0, 0.0, 1.0), min=0.0, max=1.0, update=update_shape)
+    graph_grid: BoolProperty(name="Grid", default=True, update=update_shape)
+    graph_font_size: IntProperty(name="Font Size", default=12, min=1, update=update_shape)
+    graph_font_color: FloatVectorProperty(name="Font Color", subtype='COLOR', size=4, default=(0.0, 0.0, 0.0, 1.0), min=0.0, max=1.0, update=update_shape)
+
+
 classes = (
     ShapesGeneratorItem,
     SHAPESGENERATOR_OT_UpdateShapes,
@@ -226,8 +256,9 @@ classes = (
     SHAPESGENERATOR_OT_DeleteShape,
     SHAPESGENERATOR_UL_List,
     SHAPESGENERATOR_PT_Panel,
-    SHAPESGENERATOR_OT_ImportCustomShape,  
+    SHAPESGENERATOR_OT_ImportCustomShape,
 )
+
 
 def register():
     if hasattr(bpy.types.Scene, "shapesgenerator_shapes"):
@@ -243,6 +274,7 @@ def register():
         bpy.types.Scene.shapesgenerator_shapes = CollectionProperty(type=ShapesGeneratorItem)
         bpy.types.Scene.shapesgenerator_active_shape_index = IntProperty()
 
+
 def unregister():
     for cls in reversed(classes):
         try:
@@ -252,6 +284,7 @@ def unregister():
 
     del bpy.types.Scene.shapesgenerator_shapes
     del bpy.types.Scene.shapesgenerator_active_shape_index
+
 
 if __name__ == "__main__":
     register()

@@ -21,7 +21,36 @@ def generate_shape(shape_type, **kwargs):
 
     dimension_x = int(kwargs.get('dimension_x', 100))
     dimension_y = int(kwargs.get('dimension_y', 100))
-    
+
+    if shape_type == 'GRAPH':
+        try:
+            from .graphs import render_histogram, render_boxplot
+        except Exception as e:
+            print(f"Error importing graphs module: {e}")
+            return None
+        graph_type = kwargs.get('graph_type', 'HIST')
+        title = kwargs.get('graph_title', '')
+        xlabel = kwargs.get('graph_xlabel', '')
+        ylabel = kwargs.get('graph_ylabel', '')
+        grid = bool(kwargs.get('graph_grid', True))
+        color = tuple(kwargs.get('graph_color', (0.2, 0.4, 0.8, 0.8)))
+        edge = tuple(kwargs.get('graph_edgecolor', (0.0, 0.0, 0.0, 1.0)))
+        font_size = int(kwargs.get('graph_font_size', 12))
+        font_color = tuple(kwargs.get('graph_font_color', (0.0, 0.0, 0.0, 1.0)))
+        if graph_type == 'HIST':
+            values = kwargs.get('graph_values_a', np.asarray([], dtype=float))
+            bins = int(kwargs.get('graph_bins', 30))
+            return render_histogram(values, dimension_x, dimension_y, bins=bins, color=color, edgecolor=edge, title=title, xlabel=xlabel, ylabel=ylabel, grid=grid, font_size=font_size, font_color=font_color)
+        elif graph_type == 'BOX':
+            values_a = kwargs.get('graph_values_a', np.asarray([], dtype=float))
+            values_b = kwargs.get('graph_values_b', None)
+            values_list = [values_a] if values_b is None or len(np.asarray(values_b)) == 0 else [values_a, np.asarray(values_b, dtype=float)]
+            labels = kwargs.get('graph_labels', None)
+            return render_boxplot(values_list, dimension_x, dimension_y, labels=labels, facecolor=color, edgecolor=edge, title=title, ylabel=ylabel, grid=grid, font_size=font_size, font_color=font_color)
+        else:
+            print(f"Unsupported graph_type: {graph_type}")
+            return None
+
     fig, ax = plt.subplots(figsize=(dimension_x/100, dimension_y/100), dpi=100)
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
@@ -42,12 +71,12 @@ def generate_shape(shape_type, **kwargs):
         text = kwargs.get('text_content', 'Sample Text')
         font_size = kwargs.get('font_size', 12) * scale
         font_path = kwargs.get('font_path', '')
-        
+
         if font_path and os.path.exists(font_path):
             font_prop = fm.FontProperties(fname=font_path)
         else:
             font_prop = fm.FontProperties()
-        
+
         ax.text(50, 50, text, fontproperties=font_prop, fontsize=font_size, 
                 color=font_color, ha='center', va='center')
 
@@ -70,26 +99,26 @@ def generate_shape(shape_type, **kwargs):
                 return None
             custom_image = Image.open(custom_shape_path).convert("RGBA")
             custom_image = custom_image.resize((dimension_x, dimension_y))
-            
+
             fill_color = kwargs.get('fill_color', (1, 1, 1, 1))
             fill_color = tuple(int(c * 255) for c in fill_color) 
             if custom_image and custom_image.size:
                 from PIL import Image as _PILImage
                 fill_image = _PILImage.new('RGBA', custom_image.size, fill_color)
-                
+
                 r, g, b, a = custom_image.split()
                 filled_rgb = _PILImage.composite(custom_image, fill_image, a)
-                
+
                 custom_image = _PILImage.merge('RGBA', (*filled_rgb.split()[:3], a))
             else:
                 print("Error: Custom image did not load correctly")
                 return None
-            
+
             fig, ax = plt.subplots(figsize=(dimension_x/100, dimension_y/100), dpi=100)
             ax.imshow(custom_image)
             ax.axis('off')
             fig.patch.set_alpha(0)
-            
+
             fig.canvas.draw()
             w, h = fig.canvas.get_width_height()
             buf = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
@@ -141,13 +170,13 @@ def generate_shape(shape_type, **kwargs):
             artist.set_transform(artist.get_transform() + Affine2D().rotate_deg_around(50, 50, rotation))
 
     fig.canvas.draw()
-    
+
     w, h = fig.canvas.get_width_height()
     buf = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
     buf.shape = (w, h, 4)
-    
+
     buf = np.roll(buf, 3, axis=2)
-    
+
     image = Image.frombytes("RGBA", (w, h), buf.tobytes())
     plt.close(fig)
 
