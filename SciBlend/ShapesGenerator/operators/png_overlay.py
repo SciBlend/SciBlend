@@ -36,6 +36,7 @@ def _sanitize_filename_component(name):
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", str(name))
     return safe or "shape"
 
+
 def _get_unique_temp_png_path(base_name):
     """Build a unique, writable temporary PNG file path for the given base name."""
     return _build_unique_png_path(base_name)
@@ -116,7 +117,7 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
         start_x = 0
         start_y = 0
 
-        render_layers.location = (start_x, start_y + node_spacing_y * -2)  # Multiplicamos por -2 para moverlo hacia arriba
+        render_layers.location = (start_x, start_y + node_spacing_y * -2)
 
         main_alpha_over.location = (composite.location.x - node_spacing_x, composite.location.y)
 
@@ -160,6 +161,36 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
             additional_scale_node.location = (base_x + node_spacing_x * 1.5, base_y)
             alpha_over_node.location = (base_x + node_spacing_x * 2, base_y)
 
+            extra_kwargs = {}
+            if shape.shape_type == 'GRAPH':
+                try:
+                    from ..utils.mesh_attributes import read_float_attribute
+                except Exception as e:
+                    print(f"Error importing mesh attribute utils: {e}")
+                    extra_kwargs = {}
+                else:
+                    source_obj = shape.graph_object or context.active_object
+                    arr_a = read_float_attribute(source_obj, shape.graph_attribute) if source_obj and shape.graph_attribute else np.asarray([], dtype=float)
+                    arr_b = read_float_attribute(source_obj, shape.graph_attribute_b) if source_obj and shape.graph_attribute_b else np.asarray([], dtype=float)
+                    labels = None
+                    if arr_b.size > 0:
+                        labels = [shape.graph_attribute or "A", shape.graph_attribute_b or "B"]
+                    extra_kwargs = {
+                        'graph_type': shape.graph_type,
+                        'graph_values_a': arr_a,
+                        'graph_values_b': arr_b,
+                        'graph_labels': labels,
+                        'graph_bins': shape.graph_bins,
+                        'graph_title': shape.graph_title,
+                        'graph_xlabel': shape.graph_xlabel,
+                        'graph_ylabel': shape.graph_ylabel,
+                        'graph_color': tuple(shape.graph_color),
+                        'graph_edgecolor': tuple(shape.graph_edgecolor),
+                        'graph_grid': bool(shape.graph_grid),
+                        'graph_font_size': int(shape.graph_font_size),
+                        'graph_font_color': tuple(shape.graph_font_color),
+                    }
+
             image = generate_shape(shape.shape_type, **{
                 'dimension_x': shape.dimension_x,
                 'dimension_y': shape.dimension_y,
@@ -185,7 +216,8 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                 'line_size': shape.line_size,
                 'custom_shape_path': shape.custom_shape_path,
                 'scale_x': shape.scale_x,
-                'scale_y': shape.scale_y
+                'scale_y': shape.scale_y,
+                **extra_kwargs,
             })
             if image is None:
                 print(f"Error: No image generated for shape {shape.name}")
@@ -198,8 +230,8 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
             image.save(temp_path, format='PNG')
             image_node.image = bpy.data.images.load(temp_path)
             
-            transform_node.inputs['X'].default_value = shape.position_x * 1000 # Amplificar el efecto de la posición
-            transform_node.inputs['Y'].default_value = shape.position_y * 1000 # Amplificar el efecto de la posición
+            transform_node.inputs['X'].default_value = shape.position_x * 1000
+            transform_node.inputs['Y'].default_value = shape.position_y * 1000
             transform_node.inputs['Angle'].default_value = shape.rotation
             
             if 'X' in scale_node.inputs and 'Y' in scale_node.inputs:

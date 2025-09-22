@@ -30,12 +30,31 @@ class SHAPESGENERATOR_PT_Panel(Panel):
             box = layout.box()
             box.prop(active_shape, "shape_type")
 
-            if active_shape.shape_type in ['TEXT', 'LATEX']:
+            if active_shape.shape_type == 'GRAPH':
+                box.prop(active_shape, "graph_type")
+                box.prop(active_shape, "graph_object")
+                row = box.row()
+                row.prop(active_shape, "graph_attribute", text="Attr A")
+                row.prop(active_shape, "graph_attribute_b", text="Attr B")
+                if active_shape.graph_type == 'HIST':
+                    box.prop(active_shape, "graph_bins")
+                box.prop(active_shape, "graph_title")
+                row = box.row()
+                row.prop(active_shape, "graph_xlabel")
+                row.prop(active_shape, "graph_ylabel")
+                row = box.row()
+                row.prop(active_shape, "graph_color", text="Color")
+                row.prop(active_shape, "graph_edgecolor", text="Edge")
+                row = box.row()
+                row.prop(active_shape, "graph_font_size")
+                row.prop(active_shape, "graph_font_color")
+                box.prop(active_shape, "graph_grid")
+            elif active_shape.shape_type in ['TEXT', 'LATEX']:
                 if active_shape.shape_type == 'TEXT':
                     box.prop(active_shape, "text_content")
                     box.prop(active_shape, "font_size")
                     box.prop(active_shape, "font_path")
-                else:  # LATEX
+                else:
                     box.prop(active_shape, "latex_formula")
                 box.prop(active_shape, "font_color")
             else:
