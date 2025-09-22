@@ -216,6 +216,22 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				for face_v_indices in face_v_indices_list:
 					original_indices = [vtk_cell.GetPointId(j) for j in face_v_indices]
 					self._process_face(volume_data, new_cell, original_indices)
+			elif cell_type in (VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON, VTK_TRIANGLE_STRIP, VTK_PIXEL):
+				if cell_type == VTK_TRIANGLE_STRIP:
+					num_pts = vtk_cell.GetNumberOfPoints()
+					for s in range(num_pts - 2):
+						a = vtk_cell.GetPointId(s)
+						b = vtk_cell.GetPointId(s + 1)
+						c = vtk_cell.GetPointId(s + 2)
+						if s % 2 == 0:
+							self._process_face(volume_data, new_cell, [a, b, c])
+						else:
+							self._process_face(volume_data, new_cell, [b, a, c])
+				else:
+					num_pts = vtk_cell.GetNumberOfPoints()
+					if num_pts >= 3:
+						original_indices = [vtk_cell.GetPointId(j) for j in range(num_pts)]
+						self._process_face(volume_data, new_cell, original_indices)
 			else:
 				continue
 		
