@@ -133,13 +133,13 @@ def rebuild_slice_surface_for_settings(context, settings) -> Object | None:
 			attr.data.foreach_set('value', values)
 
 	try:
-		plane.hide_viewport = True
+		plane.hide_set(True)
 		plane.hide_render = True
 	except Exception:
 		pass
 
 	obj.display_type = 'TEXTURED'
-	obj.hide_viewport = False
+	obj.hide_set(False)
 	obj.hide_render = False
 
 	return obj
