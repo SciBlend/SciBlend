@@ -143,7 +143,7 @@ def rebuild_threshold_surface_for_settings(context, settings) -> Object | None:
 	finally:
 		bpy.ops.object.mode_set(mode='OBJECT')
 
-	src_obj.hide_viewport = True
+	src_obj.hide_set(True)
 	src_obj.hide_render = True
 
 	return new_obj
