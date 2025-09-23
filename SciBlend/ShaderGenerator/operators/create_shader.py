@@ -119,8 +119,19 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     return mat
 
 
+def _get_collection_items(self, context):
+    """Return available collections as EnumProperty items for the operator UI."""
+    items = [("", "None", "No collection override")]
+    try:
+        for coll in bpy.data.collections:
+            items.append((coll.name, coll.name, coll.name))
+    except Exception:
+        pass
+    return items
+
+
 class MATERIAL_OT_create_shader(Operator):
-    """Create a colormap-based material and apply it to selected or all mesh objects."""
+    """Create a colormap-based material and apply it to selected objects, a collection, or all meshes."""
     bl_idname = "material.create_shader"
     bl_label = "Create and Apply Shader"
     bl_options = {'REGISTER', 'UNDO'}
@@ -162,6 +173,13 @@ class MATERIAL_OT_create_shader(Operator):
         name="Apply to All",
         description="Apply the shader to all mesh objects in the scene",
         default=False,
+    )
+
+    target_collection: EnumProperty(
+        name="Target Collection",
+        description="Apply the shader to all mesh objects in the chosen collection",
+        items=_get_collection_items,
+        options={'SKIP_SAVE'},
     )
 
     normalization: EnumProperty(
@@ -212,52 +230,45 @@ class MATERIAL_OT_create_shader(Operator):
 
         mat.name = self.material_name
 
-        if self.apply_to_all:
-            for obj in bpy.data.objects:
-                if getattr(obj, 'type', None) == 'MESH':
-                    if getattr(getattr(obj, 'data', None), 'materials', None):
+        def _apply_to_objects(objects):
+            """Assign the material and update any Set Material nodes for each mesh object in 'objects'."""
+            for obj in objects:
+                if getattr(obj, 'type', None) != 'MESH':
+                    continue
+                if getattr(getattr(obj, 'data', None), 'materials', None):
+                    if len(obj.data.materials) > 0:
                         obj.data.materials[0] = mat
                     else:
                         obj.data.materials.append(mat)
+                else:
+                    try:
+                        obj.data.materials.append(mat)
+                    except Exception:
+                        continue
+                if getattr(obj, 'modifiers', None):
+                    for modifier in obj.modifiers:
+                        if modifier.type == 'NODES' and modifier.node_group:
+                            def update_set_material_nodes(node_group):
+                                for node in node_group.nodes:
+                                    if node.type == 'SET_MATERIAL':
+                                        if mat not in obj.data.materials[:]:
+                                            obj.data.materials.append(mat)
+                                        if hasattr(node, 'inputs') and 'Material' in node.inputs:
+                                            node.inputs['Material'].default_value = mat
+                                        elif hasattr(node, 'material_index'):
+                                            node.material_index = obj.data.materials.find(mat.name)
+                                    elif node.type == 'GROUP' and node.node_tree:
+                                        update_set_material_nodes(node.node_tree)
+                            update_set_material_nodes(modifier.node_group)
 
-                    if getattr(obj, 'modifiers', None):
-                        for modifier in obj.modifiers:
-                            if modifier.type == 'NODES' and modifier.node_group:
-                                def update_set_material_nodes(node_group):
-                                    for node in node_group.nodes:
-                                        if node.type == 'SET_MATERIAL':
-                                            if mat not in obj.data.materials[:]:
-                                                obj.data.materials.append(mat)
-                                            if hasattr(node, 'inputs') and 'Material' in node.inputs:
-                                                node.inputs['Material'].default_value = mat
-                                            elif hasattr(node, 'material_index'):
-                                                node.material_index = obj.data.materials.find(mat.name)
-                                        elif node.type == 'GROUP' and node.node_tree:
-                                            update_set_material_nodes(node.node_tree)
-                                update_set_material_nodes(modifier.node_group)
+        if getattr(self, 'target_collection', ""):
+            coll = bpy.data.collections.get(self.target_collection)
+            if coll is not None:
+                _apply_to_objects(list(coll.objects))
+        elif self.apply_to_all:
+            _apply_to_objects([obj for obj in bpy.data.objects if getattr(obj, 'type', None) == 'MESH'])
         else:
-            for obj in context.selected_objects:
-                if getattr(obj, 'type', None) == 'MESH':
-                    if getattr(getattr(obj, 'data', None), 'materials', None):
-                        obj.data.materials[0] = mat
-                    else:
-                        obj.data.materials.append(mat)
-
-                    if getattr(obj, 'modifiers', None):
-                        for modifier in obj.modifiers:
-                            if modifier.type == 'NODES' and modifier.node_group:
-                                def update_set_material_nodes(node_group):
-                                    for node in node_group.nodes:
-                                        if node.type == 'SET_MATERIAL':
-                                            if mat not in obj.data.materials[:]:
-                                                obj.data.materials.append(mat)
-                                            if hasattr(node, 'inputs') and 'Material' in node.inputs:
-                                                node.inputs['Material'].default_value = mat
-                                            elif hasattr(node, 'material_index'):
-                                                node.material_index = obj.data.materials.find(mat.name)
-                                        elif node.type == 'GROUP' and node.node_tree:
-                                            update_set_material_nodes(node.node_tree)
-                                update_set_material_nodes(modifier.node_group)
+            _apply_to_objects(list(context.selected_objects))
 
         try:
             scene = context.scene
@@ -294,6 +305,6 @@ class MATERIAL_OT_create_shader(Operator):
         except Exception:
             pass
 
-        self.report({'INFO'}, f"Applied shader with {self.colormap} colormap, {self.interpolation} interpolation, and gamma {self.gamma} to {'all mesh objects' if self.apply_to_all else 'selected objects'}")
+        self.report({'INFO'}, f"Applied shader with {self.colormap} colormap, {self.interpolation} interpolation, and gamma {self.gamma}")
         logger.info("Shader applied successfully")
         return {'FINISHED'} 

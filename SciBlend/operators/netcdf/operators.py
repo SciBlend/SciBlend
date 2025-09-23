@@ -7,6 +7,7 @@ import math
 import time
 from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
+from ..utils.scene import get_import_target_collection
 
 try:
     import netCDF4 as nc
@@ -71,6 +72,8 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
                 context.scene.frame_end = time_steps * loop_count
             if context.scene.x3d_import_settings.overwrite_scene:
                 clear_scene(context)
+            base_name = os.path.splitext(os.path.basename(self.filepath))[0]
+            target_collection = get_import_target_collection(context, context.scene.x3d_import_settings.import_to_new_collection, base_name)
             material = self.create_material(variable_data, self.variable_name)
             start_wall = time.time()
             print(f"[NetCDF] Starting import of {time_steps} time step(s) at {datetime.now().strftime('%H:%M:%S')}")
@@ -134,7 +137,10 @@ class ImportNetCDFOperator(bpy.types.Operator, ImportHelper):
                 mesh.from_pydata(vertices, [], faces)
                 mesh.update()
                 self.add_attributes(mesh, data, coords, dim_x, dim_y)
-                context.collection.objects.link(obj)
+                if target_collection is not None:
+                    target_collection.objects.link(obj)
+                else:
+                    context.collection.objects.link(obj)
                 obj.data.materials.append(material)
                 if has_time:
                     self.setup_animation(obj, frame, time_steps, loop_count)

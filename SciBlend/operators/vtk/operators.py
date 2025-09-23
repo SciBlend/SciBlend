@@ -9,6 +9,7 @@ from bpy.props import StringProperty, EnumProperty, CollectionProperty, FloatPro
 from bpy.types import Operator
 from datetime import datetime, timedelta
 from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
+from ..utils.scene import get_import_target_collection
 from ..utils.volume_mesh_data import VolumeMeshData, VolumeVertex, VolumeFace, VolumeCell, register_model
 
 # VTK cell type ids
@@ -74,6 +75,7 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		loop_count = max(1, getattr(settings, "loop_count", 1))
 		if settings.overwrite_scene:
 			clear_scene(context)
+		self._target_collection = get_import_target_collection(context, settings.import_to_new_collection, os.path.basename(self.directory) or "VTK_Import")
 		files_to_process = self.files[self.start_frame_number-1:self.end_frame_number]
 		num_frames = len(files_to_process)
 		context.scene.frame_start = self.start_frame_number
@@ -312,7 +314,10 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		"""Create Blender mesh from the boundary faces of the in-memory volume model; assigns point and cell attributes."""
 		mesh = bpy.data.meshes.new(name)
 		obj = bpy.data.objects.new(name, mesh)
-		context.collection.objects.link(obj)
+		if hasattr(self, '_target_collection') and self._target_collection is not None:
+			self._target_collection.objects.link(obj)
+		else:
+			context.collection.objects.link(obj)
 
 		blender_vertices = [v.co for v in volume_data.vertices]
 		for i, v_obj in enumerate(volume_data.vertices):

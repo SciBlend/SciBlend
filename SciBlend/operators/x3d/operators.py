@@ -6,7 +6,7 @@ import re
 import time
 from datetime import datetime, timedelta
 from .x3d_utils import import_x3d_minimal
-from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation
+from ..utils.scene import clear_scene, keyframe_visibility_single_frame, enforce_constant_interpolation, get_import_target_collection
 
 
 class ImportX3DOperator(bpy.types.Operator, ImportHelper):
@@ -59,11 +59,13 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
         imported_count = 0
         num_frames = len(x3d_files)
         start_wall = time.time()
+        base_name = os.path.splitext(os.path.basename(self.directory if selected_files else (self.filepath or 'X3D_Import')))[0]
+        target_collection = get_import_target_collection(context, settings.import_to_new_collection, base_name)
         print(f"[X3D] Starting import of {num_frames} file(s) at {datetime.now().strftime('%H:%M:%S')}")
         for frame, x3d_file in enumerate(x3d_files, start=1):
             try:
                 per_item_start = time.time()
-                obj = import_x3d_minimal(x3d_file, name=os.path.basename(x3d_file), scale=scale_factor)
+                obj = import_x3d_minimal(x3d_file, name=os.path.basename(x3d_file), scale=scale_factor, collection=target_collection)
                 imported_objects = [obj]
             except Exception:
                 continue

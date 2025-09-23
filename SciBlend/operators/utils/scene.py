@@ -75,4 +75,23 @@ def enforce_constant_interpolation(obj: bpy.types.Object) -> None:
 	if obj.animation_data and obj.animation_data.action:
 		for fcurve in obj.animation_data.action.fcurves:
 			for kf in fcurve.keyframe_points:
-				kf.interpolation = 'CONSTANT' 
+				kf.interpolation = 'CONSTANT'
+
+
+def get_import_target_collection(context: bpy.types.Context, create_new: bool, base_name: str) -> bpy.types.Collection:
+	"""Return the collection where imported objects should be linked.
+
+	If create_new is True, a new child collection of the scene will be created with a
+	unique name derived from base_name. Otherwise, the current context collection is returned.
+	"""
+	if not create_new:
+		return context.collection
+	name = base_name or "Import"
+	final_name = name
+	index = 1
+	while final_name in bpy.data.collections:
+		index += 1
+		final_name = f"{name}_{index}"
+	new_collection = bpy.data.collections.new(final_name)
+	context.scene.collection.children.link(new_collection)
+	return new_collection 

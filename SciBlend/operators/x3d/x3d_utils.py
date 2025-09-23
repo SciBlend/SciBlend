@@ -292,11 +292,14 @@ def _apply_colors(mesh: bpy.types.Mesh, colors: Dict[str, List]) -> None:
     mesh.update()
 
 
-def import_x3d_minimal(filepath: str, name: str, scale: float = 1.0) -> bpy.types.Object:
+def import_x3d_minimal(filepath: str, name: str, scale: float = 1.0, collection: Optional[bpy.types.Collection] = None) -> bpy.types.Object:
     """Import an X3D file without relying on the built-in X3D add-on.
 
     Supports IndexedFaceSet and IndexedLineSet with inline Coordinate point arrays
     and Color/ColorRGBA mapping. Returns the created object.
+
+    If 'collection' is provided, the created object will be linked to that collection;
+    otherwise it will be linked to the active scene collection.
     """
     tree = ET.parse(filepath)
     root = tree.getroot()
@@ -317,5 +320,6 @@ def import_x3d_minimal(filepath: str, name: str, scale: float = 1.0) -> bpy.type
     _apply_colors(mesh, colors)
 
     obj = bpy.data.objects.new(name, mesh)
-    bpy.context.scene.collection.objects.link(obj)
+    target_collection = collection or bpy.context.scene.collection
+    target_collection.objects.link(obj)
     return obj 
