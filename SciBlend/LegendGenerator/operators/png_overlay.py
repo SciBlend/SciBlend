@@ -7,8 +7,10 @@ from bpy.types import Operator
 # from ..utils.gradient_bar import create_gradient_bar
 from ..utils.compositor_utils import update_legend_position_in_compositor, update_legend_scale_in_compositor
 from ..utils.color_utils import load_colormaps, interpolate_color
+from ..utils.group_utils import create_or_update_legend_group
 
 _running_overlay = False
+
 
 def _build_unique_png_path(name: str, context: bpy.types.Context) -> str:
     """Resolve a unique PNG path using add-on preferences if available, else tempdir."""
@@ -123,45 +125,34 @@ class PNGOverlayOperator(Operator):
             scene.use_nodes = True
             tree = scene.node_tree
 
+            nodegroup = create_or_update_legend_group(tmpname)
+
             tree.nodes.clear()
 
             render_layers = tree.nodes.new('CompositorNodeRLayers')
             composite = tree.nodes.new('CompositorNodeComposite')
             alpha_over = tree.nodes.new('CompositorNodeAlphaOver')
-            image_node = tree.nodes.new('CompositorNodeImage')
-            scale_size_node = tree.nodes.new('CompositorNodeScale')
-            scale_legend_node = tree.nodes.new('CompositorNodeScale')
-            translate_node = tree.nodes.new('CompositorNodeTranslate')
-
-            try:
-                image_node.image = bpy.data.images.load(tmpname)
-            except Exception:
-                self.report({'ERROR'}, "Cannot load image")
-                _running_overlay = False
-                return {'CANCELLED'}
-
-            scale_size_node.space = 'RENDER_SIZE'
-            scale_size_node.inputs[1].default_value = 1.0
-            scale_size_node.inputs[2].default_value = 1.0
-
-            scale_legend_node.space = 'RELATIVE'
-            scale_legend_node.inputs[1].default_value = settings.legend_scale_x
-            scale_legend_node.inputs[2].default_value = settings.legend_scale_y
+            group_node = tree.nodes.new('CompositorNodeGroup')
+            group_node.node_tree = nodegroup
+            group_node.label = "Legend"
 
             render_layers.location = (0, 0)
-            image_node.location = (0, 200)
-            translate_node.location = (100, 200)
-            scale_size_node.location = (300, 200)
-            scale_legend_node.location = (500, 200)
-            alpha_over.location = (800, 0)
-            composite.location = (1000, 0)
+            group_node.location = (300, 0)
+            alpha_over.location = (600, 0)
+            composite.location = (800, 0)
 
             tree.links.new(render_layers.outputs["Image"], alpha_over.inputs[1])
-            tree.links.new(image_node.outputs["Image"], translate_node.inputs["Image"])
-            tree.links.new(translate_node.outputs["Image"], scale_size_node.inputs["Image"])
-            tree.links.new(scale_size_node.outputs["Image"], scale_legend_node.inputs["Image"])
-            tree.links.new(scale_legend_node.outputs["Image"], alpha_over.inputs[2])
+            tree.links.new(group_node.outputs["Image"], alpha_over.inputs[2])
             tree.links.new(alpha_over.outputs["Image"], composite.inputs["Image"]) 
+
+            render_size_x = scene.render.resolution_x
+            render_size_y = scene.render.resolution_y
+            tx = settings.legend_position_x * render_size_x / 100
+            ty = settings.legend_position_y * render_size_y / 100
+            group_node.inputs["Translate X"].default_value = tx
+            group_node.inputs["Translate Y"].default_value = ty
+            group_node.inputs["Scale X"].default_value = settings.legend_scale_x
+            group_node.inputs["Scale Y"].default_value = settings.legend_scale_y if not settings.legend_scale_linked else settings.legend_scale_x
 
             update_legend_position_in_compositor(context)
             update_legend_scale_in_compositor(context)
