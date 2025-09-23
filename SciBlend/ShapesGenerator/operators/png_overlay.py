@@ -6,6 +6,7 @@ import os
 import tempfile
 import uuid
 import re
+from ..utils.group_utils import create_or_update_shape_group
 
 
 def _build_unique_png_path(base_name: str, context: bpy.types.Context | None = None) -> str:
@@ -79,87 +80,45 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
             composite = tree.nodes.new(type='CompositorNodeComposite')
         print(f"Composite Node: {composite}")
 
-        preexisting_alpha_over = tree.nodes.get("Alpha Over")  
-        if not preexisting_alpha_over:
-            print("No preexisting Alpha Over node found.")
-        else:
-            print(f"Preexisting Alpha Over node found: {preexisting_alpha_over.name}")
-
-        main_alpha_over = tree.nodes.get("ShapesGenerator_MainAlphaOver")
-        if not main_alpha_over:
-            main_alpha_over = tree.nodes.new(type='CompositorNodeAlphaOver')
-            main_alpha_over.name = "ShapesGenerator_MainAlphaOver"
-            main_alpha_over.location = (composite.location.x - 200, composite.location.y)
-
-        if preexisting_alpha_over:
-            if preexisting_alpha_over.inputs[1].links:
-                tree.links.remove(preexisting_alpha_over.inputs[1].links[0])
-            tree.links.new(main_alpha_over.outputs[0], preexisting_alpha_over.inputs[1])
-            print(f"Connected {main_alpha_over.name} to {preexisting_alpha_over.name} as input 1")
-        else:
-            if composite.inputs['Image'].links:
-                tree.links.remove(composite.inputs['Image'].links[0])
-            tree.links.new(main_alpha_over.outputs[0], composite.inputs['Image'])
-            print(f"Connected {main_alpha_over.name} directly to {composite.name}")
+        legend_alpha_over = tree.nodes.get("Alpha Over")
 
         render_layers = tree.nodes.get("Render Layers")
         if not render_layers:
             render_layers = tree.nodes.new(type='CompositorNodeRLayers')
         
-        if not main_alpha_over.inputs[1].links:
-            tree.links.new(render_layers.outputs['Image'], main_alpha_over.inputs[1])
+        spacing_x = 250
+        base_x = composite.location.x - 3 * spacing_x
+        row_y = composite.location.y
+
+        render_layers.location = (base_x, row_y)
+
+        if legend_alpha_over:
+            target_socket = legend_alpha_over.inputs[1]
+            if target_socket.links:
+                tree.links.remove(target_socket.links[0])
+        else:
+            target_socket = composite.inputs['Image']
+            if target_socket.links:
+                tree.links.remove(target_socket.links[0])
+
+        for node in [n for n in tree.nodes if n.name.startswith("ShapesGenerator_AlphaOver_") or n.name.startswith("ShapesGenerator_Group_")]:
+            tree.nodes.remove(node)
+
+        for node in [n for n in tree.nodes if n.type == 'REROUTE']:
+            for out in node.outputs:
+                for link in list(out.links):
+                    if link.to_socket == target_socket:
+                        tree.links.remove(link)
+                        try:
+                            tree.nodes.remove(node)
+                        except Exception:
+                            pass
 
         shapes = scene.shapesgenerator_shapes
-        existing_nodes = [node for node in tree.nodes if node.name.startswith("ShapesGenerator_") and node != main_alpha_over]
-        
-        node_spacing_x = 800  
-        node_spacing_y = -600  
-        start_x = 0
-        start_y = 0
-
-        render_layers.location = (start_x, start_y + node_spacing_y * -2)
-
-        main_alpha_over.location = (composite.location.x - node_spacing_x, composite.location.y)
+        group_nodes = []
 
         for i, shape in enumerate(shapes):
             print(f"Processing shape {i+1}: {shape.name}, Type: {shape.shape_type}")
-            
-            image_node = tree.nodes.get(f"ShapesGenerator_Image_{i}")
-            if not image_node:
-                image_node = tree.nodes.new(type='CompositorNodeImage')
-                image_node.name = f"ShapesGenerator_Image_{i}"
-            
-            scale_node = tree.nodes.get(f"ShapesGenerator_Scale_{i}")
-            if not scale_node:
-                scale_node = tree.nodes.new(type='CompositorNodeScale')
-                scale_node.name = f"ShapesGenerator_Scale_{i}"
-            scale_node.space = 'RENDER_SIZE'
-            scale_node.frame_method = 'CROP'
-            
-            transform_node = tree.nodes.get(f"ShapesGenerator_Transform_{i}")
-            if not transform_node:
-                transform_node = tree.nodes.new(type='CompositorNodeTransform')
-                transform_node.name = f"ShapesGenerator_Transform_{i}"
-            
-            alpha_over_node = tree.nodes.get(f"ShapesGenerator_AlphaOver_{i}")
-            if not alpha_over_node:
-                alpha_over_node = tree.nodes.new(type='CompositorNodeAlphaOver')
-                alpha_over_node.name = f"ShapesGenerator_AlphaOver_{i}"
-            
-            additional_scale_node = tree.nodes.get(f"ShapesGenerator_AdditionalScale_{i}")
-            if not additional_scale_node:
-                additional_scale_node = tree.nodes.new('CompositorNodeScale')
-                additional_scale_node.name = f"ShapesGenerator_AdditionalScale_{i}"
-            additional_scale_node.space = 'RELATIVE'
-
-            base_x = start_x
-            base_y = start_y + i * node_spacing_y  
-
-            image_node.location = (base_x, base_y)
-            transform_node.location = (base_x + node_spacing_x * 0.5, base_y)
-            scale_node.location = (base_x + node_spacing_x, base_y)
-            additional_scale_node.location = (base_x + node_spacing_x * 1.5, base_y)
-            alpha_over_node.location = (base_x + node_spacing_x * 2, base_y)
 
             extra_kwargs = {}
             if shape.shape_type == 'GRAPH':
@@ -223,65 +182,43 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                 print(f"Error: No image generated for shape {shape.name}")
                 continue
 
-            if image_node.image:
-                _remove_blender_image_and_file(image_node.image)
-
             temp_path = _get_unique_temp_png_path(shape.name)
             image.save(temp_path, format='PNG')
-            image_node.image = bpy.data.images.load(temp_path)
-            
-            transform_node.inputs['X'].default_value = shape.position_x * 1000
-            transform_node.inputs['Y'].default_value = shape.position_y * 1000
-            transform_node.inputs['Angle'].default_value = shape.rotation
-            
-            if 'X' in scale_node.inputs and 'Y' in scale_node.inputs:
-                scale_node.inputs['X'].default_value = shape.dimension_x / scene.render.resolution_x
-                scale_node.inputs['Y'].default_value = shape.dimension_y / scene.render.resolution_y
-            elif 'Scale' in scale_node.inputs:
-                scale_x = shape.dimension_x / scene.render.resolution_x
-                scale_y = shape.dimension_y / scene.render.resolution_y
-                scale_node.inputs['Scale'].default_value = (scale_x + scale_y) / 2
-            else:
-                print(f"Error: No valid inputs found for scale node of shape {shape.name}")
-            
-            if 'X' in additional_scale_node.inputs and 'Y' in additional_scale_node.inputs:
-                additional_scale_node.inputs['X'].default_value = shape.scale_x
-                additional_scale_node.inputs['Y'].default_value = shape.scale_y
-            elif 'Scale' in additional_scale_node.inputs:
-                additional_scale_node.inputs['Scale'].default_value = (shape.scale_x + shape.scale_y) / 2
-            else:
-                print(f"Error: No valid inputs found for additional scale node of shape {shape.name}")
 
-            tree.links.new(image_node.outputs[0], transform_node.inputs[0])
-            tree.links.new(transform_node.outputs[0], scale_node.inputs[0])
-            tree.links.new(scale_node.outputs[0], additional_scale_node.inputs[0])
-            tree.links.new(additional_scale_node.outputs[0], alpha_over_node.inputs[2])
-            
-            if i == 0:
-                tree.links.new(render_layers.outputs['Image'], alpha_over_node.inputs[1])
-            else:
-                prev_alpha_over = tree.nodes.get(f"ShapesGenerator_AlphaOver_{i-1}")
-                if prev_alpha_over:
-                    tree.links.new(prev_alpha_over.outputs[0], alpha_over_node.inputs[1])
-            
-            if i == len(shapes) - 1:
-                tree.links.new(alpha_over_node.outputs[0], main_alpha_over.inputs[2])
-            
-            existing_nodes = [node for node in existing_nodes if node not in [image_node, scale_node, transform_node, alpha_over_node, additional_scale_node]]
-        
-        if shapes:
-            last_alpha_over = tree.nodes.get(f"ShapesGenerator_AlphaOver_{len(shapes)-1}")
-            if last_alpha_over:
-                main_alpha_over.location = (last_alpha_over.location.x + node_spacing_x, last_alpha_over.location.y)
-                viewer = tree.nodes.get("Viewer")
-                if not viewer:
-                    viewer = tree.nodes.new(type='CompositorNodeViewer')
-                if viewer.inputs['Image'].links:
-                    tree.links.remove(viewer.inputs['Image'].links[0])
-                tree.links.new(last_alpha_over.outputs[0], viewer.inputs['Image'])
+            group_name = f"ShapesGroup_{i}"
+            nodegroup = create_or_update_shape_group(group_name, temp_path)
 
-        for node in existing_nodes:
-            tree.nodes.remove(node)
+            group_node = tree.nodes.new('CompositorNodeGroup')
+            group_node.name = f"ShapesGenerator_Group_{i}"
+            group_node.node_tree = nodegroup
+
+            group_node.inputs["Translate X"].default_value = shape.position_x * 1000
+            group_node.inputs["Translate Y"].default_value = shape.position_y * 1000
+            group_node.inputs["Angle"].default_value = shape.rotation
+            group_node.inputs["Scale Size X"].default_value = shape.dimension_x / scene.render.resolution_x
+            group_node.inputs["Scale Size Y"].default_value = shape.dimension_y / scene.render.resolution_y
+            group_node.inputs["Scale X"].default_value = shape.scale_x
+            group_node.inputs["Scale Y"].default_value = shape.scale_y
+
+            group_node.location = (base_x + (i + 1) * spacing_x, row_y)
+            group_nodes.append(group_node)
+
+        if len(group_nodes) == 0:
+            pass
+        else:
+            base_socket = render_layers.outputs['Image']
+            ao_nodes = []
+            for i, g in enumerate(group_nodes):
+                ao = tree.nodes.new(type='CompositorNodeAlphaOver')
+                ao.name = f"ShapesGenerator_AlphaOver_{i}"
+                ao.inputs[0].default_value = 1.0
+                ao.location = (base_x + (i + 1.5) * spacing_x, row_y)
+                tree.links.new(base_socket, ao.inputs[1])
+                tree.links.new(g.outputs['Image'], ao.inputs[2])
+                base_socket = ao.outputs[0]
+                ao_nodes.append(ao)
+
+            tree.links.new(base_socket, target_socket)
 
         self.force_update(context)
 
