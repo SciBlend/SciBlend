@@ -495,6 +495,11 @@ class X3DImportSettings(bpy.types.PropertyGroup):
         description="Delete all objects in the scene before importing new meshes",
         default=True
     )
+    import_to_new_collection: bpy.props.BoolProperty(
+        name="Import to New Collection",
+        description="Import created objects into a newly created collection",
+        default=False
+    )
     shared_material: bpy.props.PointerProperty(
         type=bpy.types.Material,
         name="Shared Material"
@@ -547,6 +552,7 @@ class SciBlendPanel(bpy.types.Panel):
         row.operator("import_shapefile.static", text="Shapefile", icon='MESH_DATA')
         row = box.row(align=True)
         row.prop(settings, "overwrite_scene")
+        row.prop(settings, "import_to_new_collection")
 
         box = layout.box()
         box.label(text="Settings", icon='SETTINGS')

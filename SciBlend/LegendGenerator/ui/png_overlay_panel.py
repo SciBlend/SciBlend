@@ -45,47 +45,30 @@ class PNGOverlayPanel(Panel):
         box.label(text="Legend Properties", icon='PROPERTIES')
         col = box.column(align=True)
         col.prop(settings, "legend_name", text="Name", icon='FONT_DATA')
-        col.prop(settings, "interpolation", text="Interpolation", icon='IPO_EASE_IN_OUT')
-        col.prop(settings, "legend_orientation", text="Orientation", icon='ORIENTATION_VIEW')
-        row = box.row(align=True)
-        row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
-        row.operator("legend.choose_shader", text="Choose Shader", icon='SHADING_RENDERED')
-
-        row = box.row(align=True)
-        row.prop(settings, "legend_number_format", text="Format")
-        row.prop(settings, "legend_decimal_places", text="Decimals")
-
+        col.prop(settings, "multi_legend_count", text="Legends")
+        col.prop(settings, "interpolation", text="Interpolation",
+                 expand=False)
+        col.prop(settings, "legend_orientation", text="Orientation",
+                 expand=False)
+        col.prop(settings, "legend_width", text="Width")
+        col.prop(settings, "legend_height", text="Height")
+        col.prop(settings, "legend_scale_linked", text="Link Scale")
+        row = col.row(align=True)
+        row.prop(settings, "legend_scale_x", text="Scale X")
+        row.prop(settings, "legend_scale_y", text="Scale Y")
+        row = col.row(align=True)
+        row.prop(settings, "legend_position_x", text="Position X")
+        row.prop(settings, "legend_position_y", text="Position Y")
+        
         box = layout.box()
-        box.label(text="Legend Dimension", icon='ARROW_LEFTRIGHT')
+        box.label(text="Font", icon='FONT_DATA')
         row = box.row(align=True)
-        row.prop(settings, "legend_width", text="Width")
-        row.prop(settings, "legend_height", text="Height")
-
-        box = layout.box()
-        box.label(text="Scale Legend", icon='FULLSCREEN_ENTER')
-        row = box.row(align=True)
-        row.prop(settings, "legend_scale_x", text="X")
-        icon = 'LINKED' if settings.legend_scale_linked else 'UNLINKED'
-        row.prop(settings, "legend_scale_linked", text="", icon=icon, toggle=True)
-        sub = row.row(align=True)
-        sub.active = not settings.legend_scale_linked
-        sub.prop(settings, "legend_scale_y", text="Y")
-
-        box = layout.box()
-        box.label(text="Legend Position", icon='OBJECT_ORIGIN')  
-        col = box.column(align=True)
-        col.prop(settings, "legend_position_x", text="X Position")
-        col.prop(settings, "legend_position_y", text="Y Position")
-
-        box = layout.box()
-        box.label(text="Legend Font", icon='SMALL_CAPS')
-        row = box.row()
-        row.prop(settings, "legend_font_type", expand=True)
+        row.prop(settings, "legend_font_type", text="Type")
         if settings.legend_font_type == 'SYSTEM':
-            row = box.row()
+            row = box.row(align=True)
             row.prop(settings, "legend_system_font", text="System Font")
         else:
-            row = box.row()
+            row = box.row(align=True)
             row.prop(settings, "legend_font", text="Custom Font File")
         
         row = box.row(align=True)

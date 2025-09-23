@@ -173,6 +173,14 @@ class LegendSettings(PropertyGroup):
         update=update_nodes,
     )
 
+    multi_legend_count: IntProperty(
+        name="Legends",
+        description="How many legends to compose in a single PNG (one per collection)",
+        default=1,
+        min=1,
+        soft_max=6,
+    )
+
     legend_name: StringProperty(
         name="Legend Name",
         description="Name of the legend that will appear on the colorbar",

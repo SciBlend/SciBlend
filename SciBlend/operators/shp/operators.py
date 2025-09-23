@@ -5,6 +5,7 @@ import numpy as np
 import os
 import geopandas as gpd
 from ..utils.scene import clear_scene
+from ..utils.scene import get_import_target_collection
 
 class ImportShapefileOperator(bpy.types.Operator, ImportHelper):
     """Import Shapefile (.shp) into Blender."""
@@ -25,8 +26,10 @@ class ImportShapefileOperator(bpy.types.Operator, ImportHelper):
                 clear_scene(context)
             gdf = gpd.read_file(self.filepath)
             collection_name = os.path.splitext(os.path.basename(self.filepath))[0]
-            collection = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(collection)
+            target_collection = get_import_target_collection(context, context.scene.x3d_import_settings.import_to_new_collection, collection_name)
+            if not context.scene.x3d_import_settings.import_to_new_collection:
+                if target_collection is None:
+                    target_collection = context.collection
             material = bpy.data.materials.new(name=f"{collection_name}_Material")
             material.use_nodes = True
             nodes = material.node_tree.nodes
@@ -80,7 +83,7 @@ class ImportShapefileOperator(bpy.types.Operator, ImportHelper):
                     continue
                 mesh = bpy.data.meshes.new(f"{collection_name}_{idx}")
                 obj = bpy.data.objects.new(f"{collection_name}_{idx}", mesh)
-                collection.objects.link(obj)
+                target_collection.objects.link(obj)
                 mesh.from_pydata(verts, edges, faces)
                 mesh.update()
                 obj.data.materials.append(material)

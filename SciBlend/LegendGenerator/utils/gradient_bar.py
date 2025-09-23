@@ -122,3 +122,45 @@ def create_gradient_bar(width, height, color_nodes, labels, filename, legend_nam
         if fig is not None:
             plt.close(fig)
         plt.rcParams.update(original_rc)
+
+
+def create_multi_legends_png(width, height, legends, filename, orientation):
+    """Compose multiple legends into a single PNG using matplotlib subplots.
+
+    Parameters
+    ----------
+    - width, height: output canvas size in pixels
+    - legends: list of dicts, each with keys matching create_gradient_bar parameters except filename
+    - filename: output image path
+    - orientation: 'HORIZONTAL' or 'VERTICAL' indicating layout direction for stacking
+    """
+    fig = None
+    try:
+        rows = len(legends) if orientation == 'VERTICAL' else 1
+        cols = 1 if orientation == 'VERTICAL' else len(legends)
+        figsize = (width/100, height/100)
+        fig, axes = plt.subplots(rows, cols, figsize=figsize, dpi=100)
+        if not isinstance(axes, (list, np.ndarray)):
+            axes = [axes]
+        axes = np.atleast_1d(axes).flatten().tolist()
+        for ax in axes:
+            ax.axis('off')
+        for idx, leg in enumerate(legends):
+            tmp = filename + f"._tmp_{idx}.png"
+            create_gradient_bar(
+                width, height,
+                leg['color_nodes'], leg['labels'], tmp, leg['legend_name'],
+                leg['interpolation'], leg['orientation'], leg['font_type'], leg['font_path'],
+                leg['text_color'], leg['text_size_pt'], leg['label_padding'], leg['label_offset_pct']
+            )
+            img = Image.open(tmp).convert('RGBA')
+            axes[idx].imshow(img)
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+        plt.subplots_adjust(wspace=0.02, hspace=0.02)
+        plt.savefig(filename, format='png', bbox_inches='tight', transparent=True, dpi=100)
+    finally:
+        if fig is not None:
+            plt.close(fig)

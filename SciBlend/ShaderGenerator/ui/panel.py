@@ -49,6 +49,7 @@ class MATERIAL_PT_shader_generator(Panel):
         col.prop(op, "gamma", text="Gamma")
         col.prop(op, "material_name", text="Material Name")
         col.prop(op, "apply_to_all", text="Apply to All")
+        col.prop(op, "target_collection", text="Collection")
         col.prop(op, "normalization", text="Normalization")
         col.prop(op, "attribute_name", text="Attribute Name")
 
