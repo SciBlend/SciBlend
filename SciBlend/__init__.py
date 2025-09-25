@@ -154,24 +154,137 @@ except ImportError:
         bl_options = {'DEFAULT_CLOSED'}
 
         def draw(self, context):
-            layout = self.layout
             box = self.layout.box()
             box.label(text="Shader Generator unavailable", icon='ERROR')
-            box.label(text="Missing dependency: scipy")
+            box.label(text="Missing internal modules")
 
-    class ShaderGeneratorOperatorStub(bpy.types.Operator):
-        """Stub operator for Shader Generator when dependencies are missing."""
-        bl_idname = "sciblend.shader_generate"
-        bl_label = "Generate Shader"
+    shader_classes = (ShaderGeneratorPanelStub,)
+
+SCIBLENDNODES_AVAILABLE = False
+sciblendnodes_classes = ()
+try:
+    from .SciBlendNodes import register as SCIBLENDNODES_register, unregister as SCIBLENDNODES_unregister
+    from .SciBlendNodes.ui.panel import SCIBLENDNODES_PT_panel
+    SCIBLENDNODES_PT_panel.bl_category = 'SciBlend'
+    SCIBLENDNODES_PT_panel.bl_options = {'DEFAULT_CLOSED'}
+    SCIBLENDNODES_AVAILABLE = True
+except ImportError:
+    SCIBLENDNODES_available = False
+
+from .operators.material_operators import CreateSharedMaterialOperator, ApplySharedMaterialOperator, RemoveAllShadersOperator
+from .operators.object_operators import (
+    CreateNullOperator, ParentNullToGeoOperator, NullToOriginOperator, CreateSceneOperator,
+    BooleanCutterOperator, BooleanCutterHideOperator,
+    AddMeshCutterOperator, GroupObjectsOperator, DeleteHierarchyOperator
+)
+from .operators.shp.delaunay import ShapefileDelaunayOperator
+from .operators.gob_operators import (
+    GOB_OT_connect_to_paraview, 
+    GOB_OT_disconnect_from_paraview, 
+    GOB_OT_refresh_from_paraview,
+    GOBSettings
+)
+
+
+
+LEGEND_AVAILABLE = False
+legend_classes = ()
+LEGEND_DEPS_HANDLER = None
+try:
+    from .LegendGenerator import (
+        update_nodes,
+        update_legend_position,
+        update_legend_scale,
+        update_legend_scale_mode,
+        update_legend,
+        get_system_fonts,
+        classes as LEGEND_CLASSES,
+    )
+    from .LegendGenerator.properties.color_value import ColorValue
+    from .LegendGenerator.ui.png_overlay_panel import PNGOverlayPanel
+    from .LegendGenerator.properties.legend_settings import LegendSettings
+    PNGOverlayPanel.bl_category = 'SciBlend'
+    PNGOverlayPanel.bl_options = {'DEFAULT_CLOSED'}
+    try:
+        from .LegendGenerator import _depsgraph_handler as _LEGEND_DEPS
+        LEGEND_DEPS_HANDLER = _LEGEND_DEPS
+    except Exception:
+        LEGEND_DEPS_HANDLER = None
+    LEGEND_AVAILABLE = True
+    legend_classes = LEGEND_CLASSES
+except ImportError:
+    class PNGOverlayPanelStub(bpy.types.Panel):
+        """Stub panel for Legend Generator shown when required dependencies are missing."""
+        bl_label = "Legend Generator"
+        bl_idname = "OBJECT_PT_sciblend_legend_generator"
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'UI'
+        bl_category = 'SciBlend Advanced Core'
+        bl_options = {'DEFAULT_CLOSED'}
+
+        def draw(self, context):
+            layout = self.layout
+            box = self.layout.box()
+            box.label(text="Legend Generator unavailable", icon='ERROR')
+            box.label(text="Missing dependencies: matplotlib, pillow")
+
+    class PNGOverlayOperatorStub(bpy.types.Operator):
+        """Stub operator for Legend Generator when dependencies are missing."""
+        bl_idname = "sciblend.legend_generate"
+        bl_label = "Generate Legend"
 
         def execute(self, context):
-            self.report({'ERROR'}, "Shader Generator dependency missing (scipy).")
+            self.report({'ERROR'}, "Legend Generator dependencies missing.")
             return {'CANCELLED'}
 
-    shader_classes = (
-        ShaderGeneratorOperatorStub,
-        ShaderGeneratorPanelStub,
+    legend_classes = (
+        PNGOverlayOperatorStub,
+        PNGOverlayPanelStub,
     )
+SHADER_AVAILABLE = False
+shader_classes = ()
+try:
+    from .ShaderGenerator import (
+        ColorRampColor,
+        COLORRAMP_OT_add_color,
+        COLORRAMP_OT_remove_color,
+        COLORRAMP_OT_save_custom,
+        COLORRAMP_OT_load_custom,
+        COLORRAMP_OT_import_json,
+        MATERIAL_OT_create_shader,
+        MATERIAL_PT_shader_generator,
+    )
+    from .ShaderGenerator.properties.settings import ShaderGeneratorSettings
+    MATERIAL_PT_shader_generator.bl_category = 'SciBlend'
+    MATERIAL_PT_shader_generator.bl_options = {'DEFAULT_CLOSED'}
+    SHADER_AVAILABLE = True
+    shader_classes = (
+        ColorRampColor,
+        COLORRAMP_OT_add_color,
+        COLORRAMP_OT_remove_color,
+        COLORRAMP_OT_save_custom,
+        COLORRAMP_OT_load_custom,
+        COLORRAMP_OT_import_json,
+        MATERIAL_OT_create_shader,
+        MATERIAL_PT_shader_generator,
+        ShaderGeneratorSettings,
+    )
+except ImportError:
+    class ShaderGeneratorPanelStub(bpy.types.Panel):
+        """Stub panel for Shader Generator shown when required dependencies are missing."""
+        bl_label = "Shader Generator"
+        bl_idname = "OBJECT_PT_sciblend_shader_generator"
+        bl_space_type = 'VIEW_3D'
+        bl_region_type = 'UI'
+        bl_category = 'SciBlend Advanced Core'
+        bl_options = {'DEFAULT_CLOSED'}
+
+        def draw(self, context):
+            box = self.layout.box()
+            box.label(text="Shader Generator unavailable", icon='ERROR')
+            box.label(text="Missing internal modules")
+
+    shader_classes = (ShaderGeneratorPanelStub,)
 
 # Grid Generator guarded integration
 GRID_AVAILABLE = False
@@ -719,6 +832,12 @@ def register():
         bpy.types.Scene.filters_slice_settings = bpy.props.PointerProperty(type=FiltersSliceSettings)
         bpy.types.Scene.filters_calculator_settings = bpy.props.PointerProperty(type=FiltersCalculatorSettings)
 
+    if SCIBLENDNODES_AVAILABLE:
+        try:
+            SCIBLENDNODES_register()
+        except Exception as e:
+            print(f"SciBlend Nodes registration failed: {e}")
+
 
 def unregister():
     global preview_collection
@@ -778,6 +897,12 @@ def unregister():
         del bpy.types.Scene.filters_slice_settings
     if hasattr(bpy.types.Scene, 'filters_calculator_settings'):
         del bpy.types.Scene.filters_calculator_settings
+
+    if SCIBLENDNODES_AVAILABLE:
+        try:
+            SCIBLENDNODES_unregister()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     register()
