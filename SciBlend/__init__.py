@@ -732,7 +732,7 @@ class SciBlendPanel(bpy.types.Panel):
         col.prop(context.scene, "on_demand_max_cached", text="Max Cached Models")
         col.operator("sciblend.clear_on_demand_cache", text="Clear Cache", icon='TRASH')
 
-classes = (
+classes_pre = (
     ImportX3DOperator,
     ImportVTKAnimationOperator,
     ImportNetCDFOperator,
@@ -759,13 +759,34 @@ classes = (
     SciBlendPanel,
     SciBlendPreferences,
     SCIBLEND_OT_clear_on_demand_cache
-) + legend_classes + shader_classes + grid_classes + notes_classes + shapes_classes + compositor_classes + filters_classes
+) + shader_classes + legend_classes + shapes_classes + grid_classes + notes_classes + filters_classes
+
+classes_post = compositor_classes
+
+classes = classes_pre + classes_post
+
 
 def register():
     global preview_collection
     preview_collection = bpy.utils.previews.new()
 
-    for cls in classes:
+    for cls in classes_pre:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            try:
+                bpy.utils.unregister_class(cls)
+            except Exception:
+                pass
+            bpy.utils.register_class(cls)
+
+    if SCIBLENDNODES_AVAILABLE:
+        try:
+            SCIBLENDNODES_register()
+        except Exception as e:
+            print(f"SciBlend Nodes registration failed: {e}")
+
+    for cls in classes_post:
         try:
             bpy.utils.register_class(cls)
         except ValueError:
@@ -831,12 +852,6 @@ def register():
         bpy.types.Scene.filters_clip_settings = bpy.props.PointerProperty(type=FiltersClipSettings)
         bpy.types.Scene.filters_slice_settings = bpy.props.PointerProperty(type=FiltersSliceSettings)
         bpy.types.Scene.filters_calculator_settings = bpy.props.PointerProperty(type=FiltersCalculatorSettings)
-
-    if SCIBLENDNODES_AVAILABLE:
-        try:
-            SCIBLENDNODES_register()
-        except Exception as e:
-            print(f"SciBlend Nodes registration failed: {e}")
 
 
 def unregister():
