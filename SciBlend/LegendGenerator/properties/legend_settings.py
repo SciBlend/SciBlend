@@ -179,6 +179,7 @@ class LegendSettings(PropertyGroup):
         default=1,
         min=1,
         soft_max=6,
+        update=_update_legend,
     )
 
     legend_name: StringProperty(

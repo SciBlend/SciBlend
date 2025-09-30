@@ -61,6 +61,11 @@ class PNGOverlayOperator(Operator):
     resolution: IntProperty(name="Resolution", default=1920)
 
     def execute(self, context):
+        """Generate the legend overlay image and compositing nodes.
+
+        Supports single legend or multiple legends per collection based on `multi_legend_count`.
+        When only one non-empty collection exists and `multi_legend_count` is 1, infer legend from that collection's shader.
+        """
         from ..utils.gradient_bar import create_gradient_bar, create_multi_legends_png
         global _running_overlay
         if _running_overlay:
@@ -251,15 +256,32 @@ class PNGOverlayOperator(Operator):
                                         settings.legend_label_padding,
                                         settings.legend_label_offset_pct)
             else:
-                color_nodes, labels = build_color_nodes_and_labels()
-                create_gradient_bar(settings.legend_width, settings.legend_height, color_nodes,
-                                    labels, tmpname, settings.legend_name, 
-                                    settings.interpolation, settings.legend_orientation,
-                                    font_type, font_path,
-                                    settings.legend_text_color,
-                                    settings.legend_text_size_pt,
-                                    settings.legend_label_padding,
-                                    settings.legend_label_offset_pct)
+                collections = [c for c in bpy.data.collections if len(c.objects) > 0]
+                if len(collections) == 1:
+                    coll = collections[0]
+                    legend_name, cn, start, end = get_collection_shader_legend(coll)
+                    subdivisions = settings.colormap_subdivisions
+                    positions = np.linspace(0, 1, subdivisions)
+                    values = np.linspace(start, end, subdivisions)
+                    labels = [_format_number(float(v), int(getattr(settings, 'legend_decimal_places', 2)), getattr(settings, 'legend_number_format', 'FIXED')) for v in values]
+                    create_gradient_bar(settings.legend_width, settings.legend_height, cn,
+                                        labels, tmpname, legend_name, 
+                                        settings.interpolation, settings.legend_orientation,
+                                        font_type, font_path,
+                                        settings.legend_text_color,
+                                        settings.legend_text_size_pt,
+                                        settings.legend_label_padding,
+                                        settings.legend_label_offset_pct)
+                else:
+                    color_nodes, labels = build_color_nodes_and_labels()
+                    create_gradient_bar(settings.legend_width, settings.legend_height, color_nodes,
+                                        labels, tmpname, settings.legend_name, 
+                                        settings.interpolation, settings.legend_orientation,
+                                        font_type, font_path,
+                                        settings.legend_text_color,
+                                        settings.legend_text_size_pt,
+                                        settings.legend_label_padding,
+                                        settings.legend_label_offset_pct)
 
             scene.use_nodes = True
             tree = scene.node_tree

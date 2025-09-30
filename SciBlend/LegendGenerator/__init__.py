@@ -244,9 +244,23 @@ def register():
 
     bpy.types.Scene.legend_settings = bpy.props.PointerProperty(type=LegendSettings)
 
+    try:
+        handlers = bpy.app.handlers.depsgraph_update_post
+        if _depsgraph_handler not in handlers:
+            handlers.append(_depsgraph_handler)
+    except Exception:
+        pass
+
 
 def unregister():
     del bpy.types.Scene.legend_settings
+
+    try:
+        handlers = bpy.app.handlers.depsgraph_update_post
+        if _depsgraph_handler in handlers:
+            handlers.remove(_depsgraph_handler)
+    except Exception:
+        pass
 
     for cls in reversed(classes):
         try:
