@@ -53,6 +53,7 @@ def create_or_update_legend_group(image_filepath: str) -> bpy.types.NodeTree:
 
     try:
         n_image.image = bpy.data.images.load(image_filepath)
+        n_image.name = "SciBlendLegendImage"
     except Exception:
         pass
 

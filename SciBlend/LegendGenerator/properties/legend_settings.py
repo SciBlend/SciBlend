@@ -166,6 +166,12 @@ class LegendSettings(PropertyGroup):
         update=_update_legend_enabled,
     )
 
+    animated_legend: BoolProperty(
+        name="Animated Legend",
+        description="When enabled, generate a legend PNG for every frame in the current timeline and index the sequence in the compositor",
+        default=False,
+    )
+
     num_nodes: IntProperty(
         name="Number of Nodes",
         default=2,
@@ -179,6 +185,17 @@ class LegendSettings(PropertyGroup):
         default=1,
         min=1,
         soft_max=6,
+        update=_update_legend,
+    )
+
+    multi_legend_scope: EnumProperty(
+        name="Multi Legend Scope",
+        description="What to compose when generating multiple legends: per collection or per object",
+        items=[
+            ('COLLECTIONS', "Collections", "Compose one legend per collection"),
+            ('OBJECTS', "Objects", "Compose one legend per object from the active collection"),
+        ],
+        default='COLLECTIONS',
         update=_update_legend,
     )
 
@@ -292,6 +309,13 @@ class LegendSettings(PropertyGroup):
         description="End value of the colormap range",
         default=1.0,
         update=update_colormap,
+    )
+
+    use_manual_range: BoolProperty(
+        name="Manual Range",
+        description="If enabled, use Start/End values instead of auto-computed per-frame ranges",
+        default=False,
+        update=_update_legend,
     )
 
     colormap_subdivisions: IntProperty(
