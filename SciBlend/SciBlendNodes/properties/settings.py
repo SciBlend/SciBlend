@@ -3,6 +3,7 @@ from bpy.types import PropertyGroup
 from bpy.props import PointerProperty, StringProperty, EnumProperty, CollectionProperty, IntProperty, FloatProperty, FloatVectorProperty, BoolProperty
 from .collection_item import CollectionListItem
 from .preset_item import PresetListItem
+from ..utils.attributes import float_attribute_items_for_context, vector_attribute_items_for_context, float_attribute_items_with_none
 
 
 def _collection_items(self, context):
@@ -162,14 +163,43 @@ class SciBlendNodesSettings(PropertyGroup):
         name="Preset",
         items=[
             ('POINTS_SHADER', "Points + Shader", "Convert mesh to points and set material"),
+            ('DISPLACE_NORMAL', "Displace by Attribute", "Displace vertices along normal scaled by a mesh attribute"),
+            ('VECTOR_GLYPHS', "Vector Glyphs", "Instance oriented cones from a vector attribute"),
         ],
         default='POINTS_SHADER',
     )
 
-    attribute_name: StringProperty(name="Attribute", default="Col")
-    vector_attribute_name: StringProperty(name="Vector Attribute", default="velocity")
+    attribute_name: EnumProperty(name="Attribute", items=float_attribute_items_for_context)
+    vector_attribute_name: EnumProperty(name="Vector Attribute", items=vector_attribute_items_for_context)
+    scale_attribute_name: EnumProperty(name="Scale Attribute", items=float_attribute_items_with_none)
     material_name: StringProperty(name="Material", default="")
     scale: FloatProperty(name="Scale", default=1.0, min=0.0)
+
+    glyph_density: FloatProperty(name="Density", description="Probability of keeping a point for glyph instancing", default=1.0, min=0.0, max=1.0)
+    glyph_max_count: IntProperty(name="Max Glyphs", description="Maximum number of glyphs to instance per object (0 = no cap)", default=10000, min=0)
+    glyph_primitive: EnumProperty(
+        name="Primitive",
+        items=[
+            ('CONE', "Cone", "Cone glyph"),
+            ('CYLINDER', "Cylinder", "Cylinder glyph"),
+            ('UV_SPHERE', "UV Sphere", "UV Sphere glyph"),
+        ],
+        default='CONE',
+    )
+
+    cone_vertices: IntProperty(name="Vertices", default=16, min=3, soft_max=128)
+    cone_radius_top: FloatProperty(name="Radius Top", default=0.0, min=0.0)
+    cone_radius_bottom: FloatProperty(name="Radius Bottom", default=0.02, min=0.0)
+    cone_depth: FloatProperty(name="Depth", default=0.1, min=0.0)
+
+    cyl_vertices: IntProperty(name="Vertices", default=16, min=3, soft_max=128)
+    cyl_radius: FloatProperty(name="Radius", default=0.02, min=0.0)
+    cyl_depth: FloatProperty(name="Depth", default=0.1, min=0.0)
+
+    sphere_segments: IntProperty(name="Segments", default=16, min=3, soft_max=256)
+    sphere_rings: IntProperty(name="Rings", default=8, min=2, soft_max=256)
+    sphere_radius: FloatProperty(name="Radius", default=0.05, min=0.0)
+
     radius: FloatProperty(name="Radius", default=0.05, min=0.0)
     voxel_size: FloatProperty(name="Voxel Size", default=0.1, min=0.0)
     threshold: FloatProperty(name="Threshold", default=0.1, min=0.0)

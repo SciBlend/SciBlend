@@ -4,25 +4,16 @@ from bpy.types import UIList
 
 class SCIBLENDNODES_UL_preset_list(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
-        """Render a single preset row with inline controls depending on preset type."""
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
-            row.prop(item, 'preset', text="", emboss=False, icon='NODETREE')
+            icon_name = 'NODETREE'
+            row.label(text=item.preset, icon=icon_name)
             if item.preset == 'POINTS_SHADER':
-                row.prop(item, 'points_radius', text="Size")
+                row.prop(item, 'points_radius', text="R")
+                row.prop(item, 'material_override', text="Mat")
             elif item.preset == 'DISPLACE_NORMAL':
                 row.prop(item, 'attribute_name', text="Attr")
-                row.prop(item, 'scale', text="Scale")
-            elif item.preset == 'VECTOR_GLYPHS':
-                row.prop(item, 'vector_attribute_name', text="Vector")
-                row.prop(item, 'scale', text="Scale")
-            elif item.preset == 'POINTS_TO_VOLUME':
-                row.prop(item, 'radius', text="R")
-                row.prop(item, 'voxel_size', text="Vox")
-                row.prop(item, 'threshold', text="Th")
-            elif item.preset == 'SLICE_PLANE':
-                row.prop(item, 'plane_point', text="Point")
-                row.prop(item, 'plane_normal', text="Normal")
+                row.prop(item, 'scale', text="S")
         elif self.layout_type in {'GRID'}:
             layout.alignment = 'CENTER'
             layout.label(text="", icon='NODETREE')

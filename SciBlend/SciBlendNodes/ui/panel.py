@@ -61,9 +61,36 @@ class SCIBLENDNODES_PT_panel(Panel):
                 row = settings_box.row(align=True)
                 row.prop(item, 'preset', text="Type")
 
-                settings_box.prop(item, 'points_radius', text="Point Size")
-                settings_box.prop(item, 'material_override', text="Material Override")
+                if item.preset == 'POINTS_SHADER':
+                    settings_box.prop(item, 'points_radius', text="Point Size")
+                    settings_box.prop(item, 'material_override', text="Material Override")
+                elif item.preset == 'DISPLACE_NORMAL':
+                    settings_box.prop(item, 'attribute_name', text="Attribute")
+                    settings_box.prop(item, 'scale', text="Scale")
+                elif item.preset == 'VECTOR_GLYPHS':
+                    settings_box.prop(item, 'vector_attribute_name', text="Vector Attribute")
+                    settings_box.prop(item, 'scale_attribute_name', text="Scale Attribute")
+                    settings_box.prop(item, 'scale', text="Scale")
+                    settings_box.prop(item, 'glyph_density', text="Density")
+                    settings_box.prop(item, 'glyph_max_count', text="Max Glyphs")
+                    settings_box.prop(item, 'glyph_primitive', text="Primitive")
+                    if item.glyph_primitive == 'CONE':
+                        col = settings_box.column(align=True)
+                        col.prop(item, 'cone_vertices')
+                        col.prop(item, 'cone_radius_top')
+                        col.prop(item, 'cone_radius_bottom')
+                        col.prop(item, 'cone_depth')
+                    elif item.glyph_primitive == 'CYLINDER':
+                        col = settings_box.column(align=True)
+                        col.prop(item, 'cyl_vertices')
+                        col.prop(item, 'cyl_radius')
+                        col.prop(item, 'cyl_depth')
+                    else:
+                        col = settings_box.column(align=True)
+                        col.prop(item, 'sphere_segments')
+                        col.prop(item, 'sphere_rings')
+                        col.prop(item, 'sphere_radius')
 
                 action_row = settings_box.row(align=True)
                 apply_op = action_row.operator("sciblend_nodes.preset_apply_selected", text="Apply Selected Preset", icon='CHECKMARK')
-                apply_op.index = settings.presets_index 
+                apply_op.index = settings.presets_index

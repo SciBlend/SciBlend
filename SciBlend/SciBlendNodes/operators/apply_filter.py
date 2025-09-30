@@ -141,6 +141,11 @@ class SCIBLENDNODES_OT_apply_filter_to_collection(Operator):
                                     if len(node.inputs) > 2:
                                         node.inputs[2].default_value = default_mat
                                 print(f"[SciBlend Nodes] Set material '{default_mat.name}' on '{obj.name}'")
+                            if node.bl_idname == 'ShaderNodeMath' and getattr(node, 'operation', '') == 'MULTIPLY':
+                                try:
+                                    node.inputs[1].default_value = float(getattr(settings, 'scale', 1.0))
+                                except Exception:
+                                    pass
                     except Exception as e:
                         print(f"[SciBlend Nodes] Error tuning nodes on '{obj.name}': {e}")
                     try:
@@ -213,14 +218,40 @@ class SCIBLENDNODES_OT_apply_preset(Operator):
             return {'CANCELLED'}
 
         try:
-            from .create_presets import _preset_points_shader
+            from .create_presets import _preset_points_shader, _preset_displace_normal, _preset_vector_glyphs
             base_name = f"SciBlend_{settings.preset}"
             name = base_name
             i = 1
             while name in bpy.data.node_groups:
                 i += 1
                 name = f"{base_name}.{i:03d}"
-            ng = _preset_points_shader(name, settings.attribute_name, settings.material_name or None)
+            if settings.preset == 'DISPLACE_NORMAL':
+                ng = _preset_displace_normal(name, settings.attribute_name, float(getattr(settings, 'scale', 1.0)))
+            elif settings.preset == 'VECTOR_GLYPHS':
+                sa = getattr(settings, 'scale_attribute_name', '')
+                sa2 = None if not sa or sa == 'NONE' else sa
+                ng = _preset_vector_glyphs(
+                    name,
+                    settings.vector_attribute_name,
+                    float(getattr(settings, 'scale', 1.0)),
+                    sa2,
+                    getattr(settings, 'material_name', '') or None,
+                    float(getattr(settings, 'glyph_density', 1.0)),
+                    int(getattr(settings, 'glyph_max_count', 0)),
+                    str(getattr(settings, 'glyph_primitive', 'CONE')),
+                    int(getattr(settings, 'cone_vertices', 16)),
+                    float(getattr(settings, 'cone_radius_top', 0.0)),
+                    float(getattr(settings, 'cone_radius_bottom', 0.02)),
+                    float(getattr(settings, 'cone_depth', 0.1)),
+                    int(getattr(settings, 'cyl_vertices', 16)),
+                    float(getattr(settings, 'cyl_radius', 0.02)),
+                    float(getattr(settings, 'cyl_depth', 0.1)),
+                    int(getattr(settings, 'sphere_segments', 16)),
+                    int(getattr(settings, 'sphere_rings', 8)),
+                    float(getattr(settings, 'sphere_radius', 0.05)),
+                )
+            else:
+                ng = _preset_points_shader(name, settings.attribute_name, settings.material_name or None)
         except Exception as e:
             print(f"[SciBlend Nodes] Preset creation error: {e}")
             self.report({'ERROR'}, f"Failed to create preset: {e}")
