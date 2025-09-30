@@ -86,11 +86,11 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			filepath = os.path.join(self.directory, file_elem.name)
 			frame = self.start_frame_number + i
 			per_item_start = time.time()
-			volume_data, point_data = self._read_grid(filepath)
+			volume_data, point_data, edges = self._read_grid(filepath)
 			if not volume_data or len(volume_data.vertices) == 0:
 				self.report({'ERROR'}, f"Failed to read file {file_elem.name}: No vertices found.")
 				continue
-			obj = self._create_mesh(context, volume_data, point_data, f"Frame_{frame}")
+			obj = self._create_mesh(context, volume_data, point_data, f"Frame_{frame}", edges)
 			try:
 				obj["sciblend_volume_source_dir"] = self.directory or ""
 				obj["sciblend_volume_source_file"] = file_elem.name or ""
@@ -119,7 +119,10 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		return {'FINISHED'}
 
 	def _read_grid(self, filepath):
-		"""Read a VTK file and build an instance-based topological volume model and point data."""
+		"""Read a VTK file and build an instance-based topological volume model and point data, returning also extracted line/polylines as edge pairs.
+
+		Returns a tuple of (volume_data, point_data, edges) where edges is a list of [i, j] vertex index pairs.
+		"""
 		from vtkmodules.vtkIOLegacy import vtkUnstructuredGridReader, vtkPolyDataReader
 		from vtkmodules.vtkIOXML import (
 			vtkXMLUnstructuredGridReader,
@@ -161,21 +164,23 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			reader.Update()
 			data = reader.GetOutput()
 		else:
-			return None, {}
+			return None, {}, []
 		
 		if data is None:
-			return None, {}
+			return None, {}, []
 		try:
 			num_points = int(data.GetNumberOfPoints()) if hasattr(data, 'GetNumberOfPoints') else 0
 		except Exception:
 			num_points = 0
 		if num_points == 0:
-			return None, {}
+			return None, {}, []
 		
 		volume_data = VolumeMeshData()
 		vtk_points = data.GetPoints()
 		for i in range(vtk_points.GetNumberOfPoints()):
 			volume_data.vertices.append(VolumeVertex(vtk_points.GetPoint(i), original_index=i))
+		
+		edges_pairs = set()
 		
 		cell_definitions = {
 			VTK_TETRA: [[0,2,1], [0,1,3], [1,2,3], [0,3,2]],
@@ -218,6 +223,20 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				for face_v_indices in face_v_indices_list:
 					original_indices = [vtk_cell.GetPointId(j) for j in face_v_indices]
 					self._process_face(volume_data, new_cell, original_indices)
+			elif cell_type in (VTK_LINE, VTK_POLYLINE):
+				num_pts = vtk_cell.GetNumberOfPoints()
+				if num_pts >= 2:
+					prev = vtk_cell.GetPointId(0)
+					for s in range(1, num_pts):
+						curr = vtk_cell.GetPointId(s)
+						a = int(prev)
+						b = int(curr)
+						if a != b:
+							if a < b:
+								edges_pairs.add((a, b))
+							else:
+								edges_pairs.add((b, a))
+						prev = curr
 			elif cell_type in (VTK_TRIANGLE, VTK_QUAD, VTK_POLYGON, VTK_TRIANGLE_STRIP, VTK_PIXEL):
 				if cell_type == VTK_TRIANGLE_STRIP:
 					num_pts = vtk_cell.GetNumberOfPoints()
@@ -293,7 +312,8 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 					magnitude_values.append(math.sqrt(sum(v*v for v in tup)))
 				point_data[f"{base_name}_Magnitude"] = magnitude_values
 		
-		return volume_data, point_data
+		edges = [[a, b] for (a, b) in sorted(edges_pairs)]
+		return volume_data, point_data, edges
 
 	def _process_face(self, volume_data: VolumeMeshData, current_cell: VolumeCell, original_indices):
 		"""Create or link a face for the current cell, using a canonical key to share faces between neighbouring cells."""
@@ -310,8 +330,8 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 			volume_data.faces.append(new_face)
 			current_cell.faces.append(new_face)
 
-	def _create_mesh(self, context, volume_data, point_data, name):
-		"""Create Blender mesh from the boundary faces of the in-memory volume model; assigns point and cell attributes."""
+	def _create_mesh(self, context, volume_data, point_data, name, edges):
+		"""Create Blender mesh from boundary faces and optional polyline edges; assigns point and cell attributes."""
 		mesh = bpy.data.meshes.new(name)
 		obj = bpy.data.objects.new(name, mesh)
 		if hasattr(self, '_target_collection') and self._target_collection is not None:
@@ -336,7 +356,9 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 				boundary_face_owner_index.append(owner_cell)
 				face_obj.blender_f_index = len(blender_faces) - 1
 
-		mesh.from_pydata(blender_vertices, [], blender_faces)
+		edges_for_mesh = edges or []
+
+		mesh.from_pydata(blender_vertices, edges_for_mesh, blender_faces)
 		mesh.update()
 		try:
 			mesh.calc_normals_split()
