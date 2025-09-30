@@ -23,6 +23,11 @@ class PNGOverlayPanel(Panel):
         
         box = layout.box()
         row = box.row(align=True)
+        row.prop(settings, "auto_from_shader", text="Auto from Shader", toggle=True)
+        row.operator("legend.choose_shader", text="Read from Shader", icon='SHADING_TEXTURE')
+        
+        box = layout.box()
+        row = box.row(align=True)
         row.label(text="Colormap", icon='COLOR')
         row.prop(settings, "colormap", text="")
         
@@ -76,6 +81,10 @@ class PNGOverlayPanel(Panel):
         
         row = box.row()
         row.prop(settings, "legend_text_color", text="Text Color")
+
+        row = box.row(align=True)
+        row.prop(settings, "legend_number_format", text="Number Format")
+        row.prop(settings, "legend_decimal_places", text="Decimals")
 
         row = box.row(align=True)
         row.prop(settings, "legend_label_padding", text="Label Padding")
