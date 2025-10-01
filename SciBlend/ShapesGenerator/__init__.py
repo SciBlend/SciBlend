@@ -6,6 +6,7 @@ from .operators.png_overlay import SHAPESGENERATOR_OT_UpdateShapes, SHAPESGENERA
 from .ui.png_overlay_panel import SHAPESGENERATOR_PT_Panel, SHAPESGENERATOR_UL_List
 from .operators.custom_shape_importer import SHAPESGENERATOR_OT_ImportCustomShape
 from .properties.graph_mixins import enum_float_attributes
+from .operators.png_overlay import SHAPESGENERATOR_OT_AnimatedGraphs
 
 
 def update_shape(self, context):
@@ -235,7 +236,7 @@ class ShapesGeneratorItem(PropertyGroup):
         default='HIST',
         update=update_shape
     )
-    graph_object: PointerProperty(type=bpy.types.Object, name="Source Object")
+    graph_collection: PointerProperty(type=bpy.types.Collection, name="Source Collection")
     graph_attribute: EnumProperty(name="Attribute A", items=enum_float_attributes, update=update_shape)
     graph_attribute_b: EnumProperty(name="Attribute B", items=enum_float_attributes, update=update_shape)
     graph_bins: IntProperty(name="Bins", default=30, min=1, update=update_shape)
@@ -257,6 +258,7 @@ classes = (
     SHAPESGENERATOR_UL_List,
     SHAPESGENERATOR_PT_Panel,
     SHAPESGENERATOR_OT_ImportCustomShape,
+    SHAPESGENERATOR_OT_AnimatedGraphs,
 )
 
 
@@ -273,6 +275,30 @@ def register():
 
         bpy.types.Scene.shapesgenerator_shapes = CollectionProperty(type=ShapesGeneratorItem)
         bpy.types.Scene.shapesgenerator_active_shape_index = IntProperty()
+        bpy.types.Scene.shapesgenerator_animated_graphs = BoolProperty(
+            name="Generate Animated Graphs",
+            description="When enabled, Update Shapes will configure graphs as Image Sequence and use the generated sequence folder",
+            default=False,
+        )
+        bpy.types.Scene.shapesgenerator_animated_graphs_dir = StringProperty(
+            name="Animated Graphs Directory",
+            description="Last generated graphs directory for image sequence",
+            default="",
+            subtype='DIR_PATH',
+        )
+    if not hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs'):
+        bpy.types.Scene.shapesgenerator_animated_graphs = BoolProperty(
+            name="Generate Animated Graphs",
+            description="When enabled, Update Shapes will configure graphs as Image Sequence and use the generated sequence folder",
+            default=False,
+        )
+    if not hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs_dir'):
+        bpy.types.Scene.shapesgenerator_animated_graphs_dir = StringProperty(
+            name="Animated Graphs Directory",
+            description="Last generated graphs directory for image sequence",
+            default="",
+            subtype='DIR_PATH',
+        )
 
 
 def unregister():
@@ -284,6 +310,10 @@ def unregister():
 
     del bpy.types.Scene.shapesgenerator_shapes
     del bpy.types.Scene.shapesgenerator_active_shape_index
+    if hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs'):
+        del bpy.types.Scene.shapesgenerator_animated_graphs
+    if hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs_dir'):
+        del bpy.types.Scene.shapesgenerator_animated_graphs_dir
 
 
 if __name__ == "__main__":

@@ -115,22 +115,71 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                             pass
 
         shapes = scene.shapesgenerator_shapes
+
+        try:
+            use_sequence_global = bool(getattr(scene, 'shapesgenerator_animated_graphs', False))
+        except Exception:
+            use_sequence_global = False
+        if use_sequence_global:
+            try:
+                bpy.ops.shapesgenerator.animated_graphs()
+            except Exception:
+                pass
+
         group_nodes = []
 
         for i, shape in enumerate(shapes):
             print(f"Processing shape {i+1}: {shape.name}, Type: {shape.shape_type}")
 
             extra_kwargs = {}
-            if shape.shape_type == 'GRAPH':
+            use_sequence = bool(getattr(scene, 'shapesgenerator_animated_graphs', False)) and shape.shape_type == 'GRAPH'
+            sequence_first_path = None
+            if use_sequence:
+                try:
+                    seq_dir = getattr(scene, 'shapesgenerator_animated_graphs_dir', '') or ''
+                    if seq_dir and os.path.isdir(bpy.path.abspath(seq_dir)):
+                        abs_dir = bpy.path.abspath(seq_dir)
+                        candidate = os.path.join(abs_dir, 'graphs_0001.png')
+                        if os.path.isfile(candidate):
+                            sequence_first_path = candidate
+                        else:
+                            files = [f for f in os.listdir(abs_dir) if f.lower().endswith('.png')]
+                            files.sort()
+                            if files:
+                                sequence_first_path = os.path.join(abs_dir, files[0])
+                except Exception:
+                    sequence_first_path = None
+
+            if shape.shape_type == 'GRAPH' and not use_sequence:
                 try:
                     from ..utils.mesh_attributes import read_float_attribute
                 except Exception as e:
                     print(f"Error importing mesh attribute utils: {e}")
                     extra_kwargs = {}
                 else:
-                    source_obj = shape.graph_object or context.active_object
-                    arr_a = read_float_attribute(source_obj, shape.graph_attribute) if source_obj and shape.graph_attribute else np.asarray([], dtype=float)
-                    arr_b = read_float_attribute(source_obj, shape.graph_attribute_b) if source_obj and shape.graph_attribute_b else np.asarray([], dtype=float)
+                    arr_a = np.asarray([], dtype=float)
+                    arr_b = np.asarray([], dtype=float)
+                    coll = getattr(shape, 'graph_collection', None)
+                    if coll and getattr(coll, 'objects', None):
+                        vals_a = []
+                        vals_b = []
+                        for obj in coll.objects:
+                            if shape.graph_attribute:
+                                a = read_float_attribute(obj, shape.graph_attribute)
+                                if a.size:
+                                    vals_a.append(a)
+                            if shape.graph_attribute_b:
+                                b = read_float_attribute(obj, shape.graph_attribute_b)
+                                if b.size:
+                                    vals_b.append(b)
+                        if vals_a:
+                            arr_a = np.concatenate(vals_a) if len(vals_a) > 1 else vals_a[0]
+                        if vals_b:
+                            arr_b = np.concatenate(vals_b) if len(vals_b) > 1 else vals_b[0]
+                    else:
+                        source_obj = getattr(context, 'active_object', None)
+                        arr_a = read_float_attribute(source_obj, shape.graph_attribute) if source_obj and shape.graph_attribute else np.asarray([], dtype=float)
+                        arr_b = read_float_attribute(source_obj, shape.graph_attribute_b) if source_obj and shape.graph_attribute_b else np.asarray([], dtype=float)
                     labels = None
                     if arr_b.size > 0:
                         labels = [shape.graph_attribute or "A", shape.graph_attribute_b or "B"]
@@ -150,43 +199,58 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                         'graph_font_color': tuple(shape.graph_font_color),
                     }
 
-            image = generate_shape(shape.shape_type, **{
-                'dimension_x': shape.dimension_x,
-                'dimension_y': shape.dimension_y,
-                'arrow_length': shape.arrow_length,
-                'arrow_width': shape.arrow_width,
-                'circle_radius': shape.circle_radius,
-                'rectangle_width': shape.rectangle_width,
-                'rectangle_height': shape.rectangle_height,
-                'ellipse_width': shape.ellipse_width,
-                'ellipse_height': shape.ellipse_height,
-                'star_outer_radius': shape.star_outer_radius,
-                'star_inner_radius': shape.star_inner_radius,
-                'star_points': shape.star_points,
-                'fill_color': (*shape.fill_color[:3], shape.fill_alpha),
-                'line_color': (*shape.line_color[:3], shape.line_alpha),
-                'line_width': shape.line_width,
-                'rotation': shape.rotation,
-                'text_content': shape.text_content,
-                'font_size': shape.font_size,
-                'font_path': shape.font_path,
-                'latex_formula': shape.latex_formula,
-                'font_color': (*shape.font_color[:3], shape.font_color[3]),
-                'line_size': shape.line_size,
-                'custom_shape_path': shape.custom_shape_path,
-                'scale_x': shape.scale_x,
-                'scale_y': shape.scale_y,
-                **extra_kwargs,
-            })
-            if image is None:
-                print(f"Error: No image generated for shape {shape.name}")
-                continue
-
-            temp_path = _get_unique_temp_png_path(shape.name)
-            image.save(temp_path, format='PNG')
+            image_path = None
+            if use_sequence and sequence_first_path:
+                image_path = sequence_first_path
+            else:
+                image = generate_shape(shape.shape_type, **{
+                    'dimension_x': shape.dimension_x,
+                    'dimension_y': shape.dimension_y,
+                    'arrow_length': shape.arrow_length,
+                    'arrow_width': shape.arrow_width,
+                    'circle_radius': shape.circle_radius,
+                    'rectangle_width': shape.rectangle_width,
+                    'rectangle_height': shape.rectangle_height,
+                    'ellipse_width': shape.ellipse_width,
+                    'ellipse_height': shape.ellipse_height,
+                    'star_outer_radius': shape.star_outer_radius,
+                    'star_inner_radius': shape.star_inner_radius,
+                    'star_points': shape.star_points,
+                    'fill_color': (*shape.fill_color[:3], shape.fill_alpha),
+                    'line_color': (*shape.line_color[:3], shape.line_alpha),
+                    'line_width': shape.line_width,
+                    'rotation': shape.rotation,
+                    'text_content': shape.text_content,
+                    'font_size': shape.font_size,
+                    'font_path': shape.font_path,
+                    'latex_formula': shape.latex_formula,
+                    'font_color': (*shape.font_color[:3], shape.font_color[3]),
+                    'line_size': shape.line_size,
+                    'custom_shape_path': shape.custom_shape_path,
+                    'scale_x': shape.scale_x,
+                    'scale_y': shape.scale_y,
+                    **extra_kwargs,
+                })
+                if image is None:
+                    print(f"Error: No image generated for shape {shape.name}")
+                    continue
+                temp_path = _get_unique_temp_png_path(shape.name)
+                image.save(temp_path, format='PNG')
+                image_path = temp_path
 
             group_name = f"ShapesGroup_{i}"
-            nodegroup = create_or_update_shape_group(group_name, temp_path)
+            seq_len = None
+            if use_sequence:
+                try:
+                    if bool(getattr(scene, 'use_preview_range', False)):
+                        seq_len = int(getattr(scene, 'frame_preview_end', scene.frame_end)) - int(getattr(scene, 'frame_preview_start', scene.frame_start)) + 1
+                    else:
+                        seq_len = int(scene.frame_end) - int(scene.frame_start) + 1
+                    if seq_len <= 0:
+                        seq_len = None
+                except Exception:
+                    seq_len = None
+            nodegroup = create_or_update_shape_group(group_name, image_path, as_sequence=use_sequence, sequence_duration=seq_len)
 
             group_node = tree.nodes.new('CompositorNodeGroup')
             group_node.name = f"ShapesGenerator_Group_{i}"
@@ -291,5 +355,202 @@ class SHAPESGENERATOR_OT_DeleteShape(Operator):
         if index >= 0 and index < len(shapes):
             shapes.remove(index)
             context.scene.shapesgenerator_active_shape_index = min(max(0, index - 1), len(shapes) - 1)
+
+        return {'FINISHED'}
+
+
+class SHAPESGENERATOR_OT_AnimatedGraphs(Operator):
+    bl_idname = "shapesgenerator.animated_graphs"
+    bl_label = "Generate Animated Graphs"
+
+    def execute(self, context):
+        scene = context.scene
+        shapes = scene.shapesgenerator_shapes
+        if not shapes:
+            return {'CANCELLED'}
+
+        if not scene.use_nodes:
+            scene.use_nodes = True
+        tree = scene.node_tree
+
+        try:
+            if bool(getattr(scene, 'use_preview_range', False)):
+                frame_start = int(getattr(scene, 'frame_preview_start', getattr(scene, 'frame_start', 1)))
+                frame_end = int(getattr(scene, 'frame_preview_end', getattr(scene, 'frame_end', frame_start)))
+            else:
+                frame_start = int(getattr(scene, 'frame_start', 1))
+                frame_end = int(getattr(scene, 'frame_end', frame_start))
+        except Exception:
+            frame_start = int(getattr(scene, 'frame_start', 1))
+            frame_end = int(getattr(scene, 'frame_end', frame_start))
+        frame_current = int(getattr(scene, 'frame_current', frame_start))
+
+        import tempfile, os
+        directory = getattr(bpy.app, 'tempdir', None) or tempfile.gettempdir()
+        base = os.path.join(directory, "sciblend_animated_graphs")
+        try:
+            os.makedirs(base, exist_ok=True)
+        except Exception:
+            pass
+
+        generated_files = []
+
+        from ..utils.graphs import render_histogram, render_boxplot
+        from ..utils.mesh_attributes import read_float_attribute, read_float_attribute_evaluated
+        from ..utils.group_utils import create_or_update_shape_group
+
+        for f in range(frame_start, frame_end + 1):
+            try:
+                scene.frame_set(f)
+                context.view_layer.update()
+            except Exception:
+                pass
+            try:
+                depsgraph = context.evaluated_depsgraph_get()
+            except Exception:
+                depsgraph = None
+
+            try:
+                from PIL import Image
+            except Exception:
+                return {'CANCELLED'}
+            base_w = None; base_h = None
+            images = []
+            for shape in shapes:
+                if shape.shape_type != 'GRAPH':
+                    continue
+                if base_w is None:
+                    base_w = int(shape.dimension_x)
+                    base_h = int(shape.dimension_y)
+                coll = getattr(shape, 'graph_collection', None)
+                objs = [o for o in (getattr(coll, 'objects', []) or []) if getattr(o, 'type', None) == 'MESH'] if coll else []
+                visible_objs = []
+                for obj in objs:
+                    try:
+                        is_visible = not getattr(obj, 'hide_viewport', False) and not getattr(obj, 'hide_render', False)
+                        try:
+                            is_visible = is_visible and obj.visible_get()
+                        except Exception:
+                            pass
+                        if is_visible:
+                            visible_objs.append(obj)
+                    except Exception:
+                        continue
+                objs = visible_objs
+                if not objs:
+                    fallback = getattr(context, 'active_object', None)
+                    if fallback and getattr(fallback, 'type', None) == 'MESH':
+                        objs = [fallback]
+                for obj in objs:
+                    arr_a = read_float_attribute(obj, shape.graph_attribute) if shape.graph_attribute else np.asarray([], dtype=float)
+                    arr_b = read_float_attribute(obj, shape.graph_attribute_b) if shape.graph_attribute_b else np.asarray([], dtype=float)
+                    title = shape.graph_title or ""
+                    title = f"{title} {obj.name}".strip()
+                    if shape.graph_type == 'HIST':
+                        img = render_histogram(arr_a, int(shape.dimension_x), int(shape.dimension_y), bins=int(shape.graph_bins), color=tuple(shape.graph_color), edgecolor=tuple(shape.graph_edgecolor), title=title, xlabel=shape.graph_xlabel, ylabel=shape.graph_ylabel, grid=bool(shape.graph_grid), font_size=int(shape.graph_font_size), font_color=tuple(shape.graph_font_color))
+                    else:
+                        values_list = [arr_a] if arr_b.size == 0 else [arr_a, arr_b]
+                        labels = None if arr_b.size == 0 else [shape.graph_attribute or "A", shape.graph_attribute_b or "B"]
+                        img = render_boxplot(values_list, int(shape.dimension_x), int(shape.dimension_y), labels=labels, facecolor=tuple(shape.graph_color), edgecolor=tuple(shape.graph_edgecolor), title=title, ylabel=shape.graph_ylabel, grid=bool(shape.graph_grid), font_size=int(shape.graph_font_size), font_color=tuple(shape.graph_font_color))
+                    if img is not None:
+                        images.append(img)
+            if not images:
+                continue
+            try:
+                from PIL import Image
+                if base_w is None or base_h is None:
+                    first = images[0]
+                    base_w, base_h = int(first.width), int(first.height)
+                canvas = Image.new("RGBA", (int(base_w), int(base_h)), (0, 0, 0, 0))
+                n = len(images)
+                slot_h = max(1, int(base_h // n))
+                resample = getattr(Image, 'LANCZOS', getattr(Image, 'ANTIALIAS', 1))
+                y = 0
+                for idx, im in enumerate(images):
+                    resized = im.resize((int(base_w), int(slot_h)), resample=resample)
+                    canvas.alpha_composite(resized, (0, y))
+                    y += slot_h
+                path = os.path.join(base, f"graphs_{f:04d}.png")
+                canvas.save(path, format='PNG')
+                generated_files.append(path)
+            except Exception:
+                continue
+
+        try:
+            scene.frame_set(frame_current)
+        except Exception:
+            pass
+
+        if not generated_files:
+            return {'CANCELLED'}
+
+        group_name = "ShapesGraphsGroup"
+        seq_len = max(1, frame_end - frame_start + 1)
+        nodegroup = create_or_update_shape_group(group_name, generated_files[0], as_sequence=True, sequence_duration=seq_len)
+        try:
+            context.scene.shapesgenerator_animated_graphs_dir = os.path.dirname(generated_files[0])
+        except Exception:
+            pass
+
+        try:
+            image_node = None
+            for node in nodegroup.nodes:
+                if node.type == 'IMAGE':
+                    image_node = node
+                    break
+            
+            if image_node:
+                old_img = image_node.image
+                
+                try:
+                    if old_img:
+                        old_img.filepath = generated_files[0]
+                        old_img.source = 'SEQUENCE'
+                        try:
+                            old_img.reload()
+                        except Exception:
+                            pass
+                        img = old_img
+                    else:
+                        img = bpy.data.images.load(generated_files[0])
+                        img.source = 'SEQUENCE'
+                        image_node.image = img
+                    
+                    try:
+                        image_node.frame_start = frame_start
+                    except Exception:
+                        pass
+                    
+                    try:
+                        image_node.frame_duration = max(1, frame_end - frame_start + 1)
+                    except Exception:
+                        pass
+                    
+                    try:
+                        image_node.frame_offset = 1 - frame_start
+                    except Exception:
+                        pass
+                    
+                    try:
+                        image_node.use_auto_refresh = True
+                    except Exception:
+                        pass
+                    
+                    try:
+                        image_node.use_cyclic = False
+                    except Exception:
+                        pass
+                    
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            context.view_layer.update()
+            for area in context.screen.areas:
+                area.tag_redraw()
+        except Exception:
+            pass
 
         return {'FINISHED'}

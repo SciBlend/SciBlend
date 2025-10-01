@@ -42,6 +42,7 @@ class PNGOverlayPanel(Panel):
             col.operator("scene.color_value_move", text="", icon='TRIA_DOWN').direction = 'DOWN'
         else:
             col = box.column(align=True)
+            col.prop(settings, "use_manual_range", text="Manual Range", toggle=True)
             col.prop(settings, "colormap_start", text="Start", icon='SORT_ASC')
             col.prop(settings, "colormap_end", text="End", icon='SORT_DESC')
             col.prop(settings, "colormap_subdivisions", text="Subdivisions", icon='GRID')
@@ -51,6 +52,7 @@ class PNGOverlayPanel(Panel):
         col = box.column(align=True)
         col.prop(settings, "legend_name", text="Name", icon='FONT_DATA')
         col.prop(settings, "multi_legend_count", text="Legends")
+        col.prop(settings, "multi_legend_scope", text="Scope")
         col.prop(settings, "interpolation", text="Interpolation",
                  expand=False)
         col.prop(settings, "legend_orientation", text="Orientation",
@@ -58,6 +60,7 @@ class PNGOverlayPanel(Panel):
         col.prop(settings, "legend_width", text="Width")
         col.prop(settings, "legend_height", text="Height")
         col.prop(settings, "legend_scale_linked", text="Link Scale")
+        col.prop(settings, "animated_legend", text="Animated Legend", toggle=True)
         row = col.row(align=True)
         row.prop(settings, "legend_scale_x", text="Scale X")
         row.prop(settings, "legend_scale_y", text="Scale Y")

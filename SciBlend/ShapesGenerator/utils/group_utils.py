@@ -1,7 +1,7 @@
 import bpy
 
 
-def create_or_update_shape_group(group_name: str, image_filepath: str) -> bpy.types.NodeTree:
+def create_or_update_shape_group(group_name: str, image_filepath: str, as_sequence: bool = False, sequence_duration: int | None = None) -> bpy.types.NodeTree:
     """Create or update a compositor node group for a shape overlay.
 
     The group contains Image -> Transform -> Scale(RENDER_SIZE) -> Scale(RELATIVE) -> Output.
@@ -37,6 +37,20 @@ def create_or_update_shape_group(group_name: str, image_filepath: str) -> bpy.ty
 
     try:
         n_image.image = bpy.data.images.load(image_filepath)
+        n_image.name = f"{group_name}_Image"
+        try:
+            if n_image.image:
+                n_image.image.source = 'SEQUENCE' if as_sequence else 'FILE'
+        except Exception:
+            pass
+        try:
+            n_image.use_auto_refresh = bool(as_sequence)
+            n_image.use_cyclic = False
+            n_image.frame_start = 1
+            if as_sequence and isinstance(sequence_duration, int) and sequence_duration > 0:
+                n_image.frame_duration = sequence_duration
+        except Exception:
+            pass
     except Exception:
         pass
 

@@ -32,7 +32,7 @@ class SHAPESGENERATOR_PT_Panel(Panel):
 
             if active_shape.shape_type == 'GRAPH':
                 box.prop(active_shape, "graph_type")
-                box.prop(active_shape, "graph_object")
+                box.prop(active_shape, "graph_collection")
                 row = box.row()
                 row.prop(active_shape, "graph_attribute", text="Attr A")
                 row.prop(active_shape, "graph_attribute_b", text="Attr B")
@@ -49,6 +49,7 @@ class SHAPESGENERATOR_PT_Panel(Panel):
                 row.prop(active_shape, "graph_font_size")
                 row.prop(active_shape, "graph_font_color")
                 box.prop(active_shape, "graph_grid")
+                box.prop(scene, "shapesgenerator_animated_graphs", text="Generate Animated Graphs", toggle=True)
             elif active_shape.shape_type in ['TEXT', 'LATEX']:
                 if active_shape.shape_type == 'TEXT':
                     box.prop(active_shape, "text_content")
