@@ -400,6 +400,7 @@ try:
         SHAPESGENERATOR_OT_NewShape,
         SHAPESGENERATOR_OT_DeleteShape,
         SHAPESGENERATOR_OT_ImportCustomShape,
+        SHAPESGENERATOR_OT_AnimatedGraphs,
     )
     # Align Shapes Generator panel to SciBlend category
     SHAPESGENERATOR_PT_Panel.bl_category = 'SciBlend'
@@ -413,6 +414,7 @@ try:
         SHAPESGENERATOR_OT_NewShape,
         SHAPESGENERATOR_OT_DeleteShape,
         SHAPESGENERATOR_OT_ImportCustomShape,
+        SHAPESGENERATOR_OT_AnimatedGraphs,
     )
 except ImportError:
     class ShapesGeneratorPanelStub(bpy.types.Panel):
@@ -832,6 +834,19 @@ def register():
     if SHAPES_AVAILABLE:
         bpy.types.Scene.shapesgenerator_shapes = bpy.props.CollectionProperty(type=ShapesGeneratorItem)
         bpy.types.Scene.shapesgenerator_active_shape_index = bpy.props.IntProperty()
+        if not hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs'):
+            bpy.types.Scene.shapesgenerator_animated_graphs = bpy.props.BoolProperty(
+                name="Generate Animated Graphs",
+                description="When enabled, Update Shapes configures graphs as Image Sequence and uses the generated sequence folder",
+                default=False,
+            )
+        if not hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs_dir'):
+            bpy.types.Scene.shapesgenerator_animated_graphs_dir = bpy.props.StringProperty(
+                name="Animated Graphs Directory",
+                description="Last generated graphs directory for image sequence",
+                default="",
+                subtype='DIR_PATH',
+            )
 
     if COMPOSITOR_AVAILABLE:
         bpy.types.Scene.cinematography_settings = bpy.props.PointerProperty(type=CinematographySettings)
@@ -885,6 +900,10 @@ def unregister():
     if hasattr(bpy.types.Scene, 'shapesgenerator_shapes'):
         del bpy.types.Scene.shapesgenerator_shapes
         del bpy.types.Scene.shapesgenerator_active_shape_index
+    if hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs'):
+        del bpy.types.Scene.shapesgenerator_animated_graphs
+    if hasattr(bpy.types.Scene, 'shapesgenerator_animated_graphs_dir'):
+        del bpy.types.Scene.shapesgenerator_animated_graphs_dir
     if hasattr(bpy.types.Scene, 'cinematography_settings'):
         if hasattr(bpy.types.Scene, "cinematography_settings"):
             del bpy.types.Scene.cinematography_settings

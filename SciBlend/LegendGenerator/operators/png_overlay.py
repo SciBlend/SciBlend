@@ -323,6 +323,7 @@ class PNGOverlayOperator(Operator):
                 for f in range(frame_start, frame_end + 1):
                     try:
                         scene.frame_set(f)
+                        context.view_layer.update()
                     except Exception:
                         pass
                     if multi_count > 1 and collections:
@@ -543,18 +544,12 @@ class PNGOverlayOperator(Operator):
                     if image_node and image_node.image:
                         img = image_node.image
                         img.source = 'SEQUENCE'
-                        try:
-                            if hasattr(img, 'filepaths'):
-                                img.filepaths.clear()
-                                for p in generated_files or [tmpname]:
-                                    img.filepaths.append(p)
-                                img.filepath = (generated_files[0] if generated_files else tmpname)
-                        except Exception:
-                            pass
+                        img.filepath = (generated_files[0] if generated_files else tmpname)
                         iu = getattr(image_node, 'image_user', None)
                         if iu:
                             iu.frame_start = frame_start
                             iu.frame_duration = max(1, frame_end - frame_start + 1)
+                            iu.frame_offset = 1 - frame_start
                             iu.use_auto_refresh = True
                         try:
                             if hasattr(image_node, 'frame_duration'):

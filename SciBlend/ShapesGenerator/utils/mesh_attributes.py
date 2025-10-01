@@ -49,4 +49,40 @@ def read_float_attribute(obj: bpy.types.Object, attribute_name: str) -> np.ndarr
         mask = np.isfinite(arr)
         return arr[mask]
     except Exception:
+        return np.asarray([], dtype=float)
+
+
+def read_float_attribute_evaluated(obj: bpy.types.Object, attribute_name: str, depsgraph: bpy.types.Depsgraph) -> np.ndarray:
+    """Read a FLOAT attribute from the evaluated mesh for the current frame.
+
+    Returns an empty array if the attribute does not exist or is not FLOAT.
+    """
+    try:
+        if not obj or getattr(obj, 'type', None) != 'MESH':
+            return np.asarray([], dtype=float)
+        obj_eval = obj.evaluated_get(depsgraph)
+        mesh = None
+        try:
+            mesh = obj_eval.to_mesh()
+            if not mesh:
+                return np.asarray([], dtype=float)
+            attrs = getattr(mesh, 'attributes', None)
+            if not attrs or attribute_name not in attrs:
+                return np.asarray([], dtype=float)
+            attr = attrs[attribute_name]
+            if getattr(attr, 'data_type', '') != 'FLOAT':
+                return np.asarray([], dtype=float)
+            values = [getattr(d, 'value', 0.0) for d in attr.data]
+            arr = np.asarray(values, dtype=float)
+            if arr.size == 0:
+                return arr
+            mask = np.isfinite(arr)
+            return arr[mask]
+        finally:
+            try:
+                if obj_eval and hasattr(obj_eval, 'to_mesh_clear') and mesh is not None:
+                    obj_eval.to_mesh_clear()
+            except Exception:
+                pass
+    except Exception:
         return np.asarray([], dtype=float) 
