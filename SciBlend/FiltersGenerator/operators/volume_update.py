@@ -2,6 +2,9 @@ import bpy
 from mathutils import Vector
 import os
 
+_RANGE_CACHE = {}
+_LAST_RANGE_ERROR = ""
+
 
 def _ensure_node_group_elementwise_less_than():
     ng = bpy.data.node_groups.get("Element-wise LESS_THAN")
@@ -255,6 +258,200 @@ def _ensure_slice_cube_object(volume_obj: bpy.types.Object) -> bpy.types.Object:
     return cube
 
 
+def _get_sequence_files(settings) -> list:
+    dirpath = getattr(settings, 'last_import_dir', '') or ''
+    try:
+        files = [f.name for f in settings.last_import_files] if len(settings.last_import_files) else []
+    except Exception:
+        files = []
+    if (not files) and getattr(getattr(settings, 'volume_object', None), 'data', None):
+        fp = getattr(settings.volume_object.data, 'filepath', '')
+        if fp and os.path.exists(fp):
+            dirpath = os.path.dirname(fp)
+            files = [os.path.basename(fp)]
+    return [dirpath, files]
+
+
+def _resolve_vdb_filepath_for_frame(context, settings) -> str:
+    dirpath, files = _get_sequence_files(settings)
+    if not files:
+        return ''
+    frame = getattr(getattr(context, 'scene', None), 'frame_current', 1) or 1
+    start = 1
+    offset = 0
+    try:
+        vd = getattr(settings.volume_object, 'data', None)
+        if vd is not None:
+            start = getattr(vd, 'frame_start', start) or start
+            offset = getattr(vd, 'frame_offset', offset) or offset
+    except Exception:
+        pass
+    idx = frame - start + offset
+    if idx < 0:
+        idx = 0
+    if idx >= len(files):
+        idx = len(files) - 1
+    name = files[int(idx)]
+    try:
+        return bpy.path.abspath(bpy.path.relpath(bpy.path.join(dirpath, name))) if hasattr(bpy.path, 'join') else os.path.join(dirpath, name)
+    except Exception:
+        return os.path.join(dirpath, name)
+
+
+def _compute_vdb_grid_min_max(filepath: str, grid_name: str):
+    global _LAST_RANGE_ERROR
+    _LAST_RANGE_ERROR = ""
+    if not filepath:
+        _LAST_RANGE_ERROR = "No filepath resolved for current frame."
+        return None
+    if not os.path.exists(filepath):
+        _LAST_RANGE_ERROR = f"File not found: {filepath}"
+        return None
+    if not grid_name:
+        _LAST_RANGE_ERROR = "No grid selected."
+        return None
+    key = (filepath, grid_name)
+    if key in _RANGE_CACHE:
+        return _RANGE_CACHE[key]
+    try:
+        try:
+            import pyopenvdb as vdb
+        except Exception:
+            try:
+                import openvdb as vdb
+            except Exception:
+                _LAST_RANGE_ERROR = "pyopenvdb/openvdb is not installed."
+                return None
+        try:
+            grid = vdb.read(filepath, grid_name)
+        except Exception:
+            _LAST_RANGE_ERROR = f"Grid '{grid_name}' not found or cannot be read from {os.path.basename(filepath)}"
+            return None
+
+        min_v = float('inf')
+        max_v = float('-inf')
+
+        values_iter = None
+        for getter in (
+            getattr(grid, 'citerOnValues', None),
+            getattr(grid, 'iterOnValues', None),
+            getattr(grid, 'citerAllValues', None),
+            getattr(grid, 'iterAllValues', None),
+        ):
+            if callable(getter):
+                try:
+                    values_iter = getter()
+                    break
+                except Exception:
+                    continue
+        if values_iter is None:
+            try:
+                values_iter = grid.values()
+            except Exception:
+                pass
+        if values_iter is None:
+            _LAST_RANGE_ERROR = "Cannot iterate grid values."
+            stats = {'min': float('inf'), 'max': float('-inf')}
+            def _accumulate(x):
+                try:
+                    v = x
+                    if isinstance(v, (list, tuple)):
+                        s = 0.0
+                        for c in v:
+                            s += float(c) * float(c)
+                        v = s ** 0.5
+                    else:
+                        v = float(v)
+                    if v < stats['min']:
+                        stats['min'] = v
+                    if v > stats['max']:
+                        stats['max'] = v
+                except Exception:
+                    pass
+                return x
+            try:
+                if hasattr(grid, 'mapOn') and callable(getattr(grid, 'mapOn')):
+                    grid.mapOn(_accumulate)
+                    min_v, max_v = stats['min'], stats['max']
+                elif hasattr(grid, 'mapAll') and callable(getattr(grid, 'mapAll')):
+                    grid.mapAll(_accumulate)
+                    min_v, max_v = stats['min'], stats['max']
+                else:
+                    try:
+                        bb = grid.evalActiveVoxelBoundingBox()
+                        if not bb or not isinstance(bb, (tuple, list)) or len(bb) != 2:
+                            return None
+                        (imin, jmin, kmin), (imax, jmax, kmax) = bb
+                        shape = (imax - imin + 1, jmax - jmin + 1, kmax - kmin + 1)
+                        import numpy as np
+                        arr = None
+                        try:
+                            arr = np.empty(shape + (3,), dtype=np.float32)
+                            grid.copyToArray(arr, ijk=(imin, jmin, kmin))
+                            vec = arr.reshape(-1, 3).astype(np.float64)
+                            mags = np.sqrt((vec * vec).sum(axis=1))
+                            min_v = float(mags.min(initial=float('inf')))
+                            max_v = float(mags.max(initial=float('-inf')))
+                        except Exception:
+                            arr = np.empty(shape, dtype=np.float32)
+                            grid.copyToArray(arr, ijk=(imin, jmin, kmin))
+                            bg = None
+                            try:
+                                bg = getattr(grid, 'background', None)
+                            except Exception:
+                                bg = None
+                            if bg is not None:
+                                try:
+                                    bgf = float(bg)
+                                    mask = arr != bgf
+                                    if mask.any():
+                                        min_v = float(arr[mask].min(initial=float('inf')))
+                                        max_v = float(arr[mask].max(initial=float('-inf')))
+                                    else:
+                                        min_v = float(arr.min(initial=float('inf')))
+                                        max_v = float(arr.max(initial=float('-inf')))
+                                except Exception:
+                                    min_v = float(arr.min(initial=float('inf')))
+                                    max_v = float(arr.max(initial=float('-inf')))
+                            else:
+                                min_v = float(arr.min(initial=float('inf')))
+                                max_v = float(arr.max(initial=float('-inf')))
+                    except Exception:
+                        return None
+            except Exception:
+                return None
+        else:
+            for item in values_iter:
+                try:
+                    val = getattr(item, 'value', item)
+                except Exception:
+                    val = item
+                try:
+                    if isinstance(val, (list, tuple)):
+                        comp = 0.0
+                        for c in val:
+                            comp += float(c) * float(c)
+                        val = comp ** 0.5
+                    else:
+                        val = float(val)
+                except Exception:
+                    continue
+                if val < min_v:
+                    min_v = val
+                if val > max_v:
+                    max_v = val
+
+        if min_v is float('inf') or max_v is float('-inf'):
+            _LAST_RANGE_ERROR = "Grid has no values."
+            return None
+        result = (float(min_v), float(max_v))
+        _RANGE_CACHE[key] = result
+        return result
+    except Exception as e:
+        _LAST_RANGE_ERROR = f"Unexpected error: {e}"
+        return None
+
+
 def ensure_volume_material_for_object(context, obj, settings):
     mat_name = "SciBlend_Volume"
     mat = None
@@ -274,6 +471,14 @@ def ensure_volume_material_for_object(context, obj, settings):
     attr.attribute_name = settings.grid_name or "density"
     attr.location = (-600, 0)
     mapr = nt.nodes.new('ShaderNodeMapRange'); mapr.location = (-400, 0)
+    try:
+        if getattr(settings, 'auto_range', False) and getattr(settings, 'grid_name', ''):
+            fp = _resolve_vdb_filepath_for_frame(context, settings)
+            rng = _compute_vdb_grid_min_max(fp, settings.grid_name)
+            if rng:
+                settings.from_min, settings.from_max = rng
+    except Exception:
+        pass
     mapr.inputs[1].default_value = settings.from_min
     mapr.inputs[2].default_value = settings.from_max
     mapr.inputs[3].default_value = 0.0
@@ -330,6 +535,14 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
         if not s.volume_object or s.volume_object.type != 'VOLUME':
             self.report({'ERROR'}, "Select a Volume object")
             return {'CANCELLED'}
+        try:
+            if getattr(s, 'auto_range', False) and getattr(s, 'grid_name', ''):
+                fp = _resolve_vdb_filepath_for_frame(context, s)
+                rng = _compute_vdb_grid_min_max(fp, s.grid_name)
+                if rng:
+                    s.from_min, s.from_max = rng
+        except Exception:
+            pass
         mat = ensure_volume_material_for_object(context, s.volume_object, s)
         nt = mat.node_tree
         attr = next((n for n in nt.nodes if n.type == 'ATTRIBUTE'), None)
@@ -384,31 +597,18 @@ class FILTERS_OT_volume_compute_range(bpy.types.Operator):
         if not s.volume_object or s.volume_object.type != 'VOLUME' or not s.grid_name:
             self.report({'ERROR'}, "Select volume and grid")
             return {'CANCELLED'}
-        min_v, max_v = None, None
+        rng = None
         try:
-            import openvdb as vdb
-            dirpath = s.last_import_dir
-            files = [f.name for f in s.last_import_files] if len(s.last_import_files) else []
-            filepath = None
-            for n in files or []:
-                if n.lower().endswith('.vdb'):
-                    filepath = bpy.path.abspath(bpy.path.relpath(bpy.path.join(dirpath, n))) if hasattr(bpy.path, 'join') else os.path.join(dirpath, n)
-                    break
-            if not filepath and dirpath:
-                filepath = getattr(s.volume_object.data, 'filepath', '')
-            if filepath and os.path.exists(filepath):
-                grid = vdb.read(filepath)[s.grid_name]
-                min_v = float('inf'); max_v = float('-inf')
-                for v in grid.values():
-                    if v < min_v: min_v = v
-                    if v > max_v: max_v = v
+            fp = _resolve_vdb_filepath_for_frame(context, s)
+            rng = _compute_vdb_grid_min_max(fp, s.grid_name)
         except Exception:
-            pass
-        if min_v is None or max_v is None:
-            self.report({'WARNING'}, "Could not compute range (pyopenvdb not available); set manually.")
+            rng = None
+        if not rng:
+            from_filepath = _resolve_vdb_filepath_for_frame(context, s)
+            reason = _LAST_RANGE_ERROR or "Unknown reason"
+            self.report({'WARNING'}, f"Could not compute range: {reason} | file: {from_filepath}")
             return {'CANCELLED'}
-        s.from_min = float(min_v)
-        s.from_max = float(max_v)
+        s.from_min, s.from_max = rng
         if s.auto_range:
             bpy.ops.filters.volume_update_material('INVOKE_DEFAULT')
         return {'FINISHED'}
