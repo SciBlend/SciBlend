@@ -118,6 +118,21 @@ else:
     print("Invalid option. Using VTK format by default.")
     ext = 'vtk'
 
+user_vdb_dims = None
+if ext == 'vdb':
+    dims_input = input("VDB sampling dimensions (e.g., 256 or 256,256,128) [default 128]: ").strip()
+    if dims_input:
+        try:
+            parts = [int(x) for x in dims_input.replace(' ', '').split(',') if x != '']
+            if len(parts) == 1 and parts[0] > 0:
+                user_vdb_dims = [parts[0], parts[0], parts[0]]
+            elif len(parts) >= 3 and parts[0] > 0 and parts[1] > 0 and parts[2] > 0:
+                user_vdb_dims = [parts[0], parts[1], parts[2]]
+            else:
+                print("Invalid input. Falling back to defaults.")
+        except Exception:
+            print("Invalid input. Falling back to defaults.")
+
 total_frames = len(timesteps)
 if total_frames > 1:
     print(f"\nTotal available frames: {total_frames}")
@@ -178,25 +193,33 @@ def export_points(data, filepath, current_time):
                 def build_vdb_volume_source(src, vtk_data):
                     classname = vtk_data.GetClassName()
                     if "ImageData" in classname or "StructuredGrid" in classname:
+                        if user_vdb_dims:
+                            resample = ResampleToImage(Input=src)
+                            resample.UseInputBounds = 1
+                            resample.SamplingDimensions = user_vdb_dims
+                            return resample
                         return src
                     print("Input is not a regular volume; resampling to ImageData for VDB export...")
                     resample = ResampleToImage(Input=src)
                     resample.UseInputBounds = 1
-                    dims_env = os.environ.get('PARAVIEW_VDB_DIMS', '').strip()
-                    try:
-                        if dims_env:
-                            parts = [int(x) for x in dims_env.replace(' ', '').split(',')]
-                            if len(parts) == 1:
-                                resample.SamplingDimensions = [parts[0], parts[0], parts[0]]
-                            elif len(parts) >= 3:
-                                resample.SamplingDimensions = [parts[0], parts[1], parts[2]]
+                    if user_vdb_dims:
+                        resample.SamplingDimensions = user_vdb_dims
+                    else:
+                        dims_env = os.environ.get('PARAVIEW_VDB_DIMS', '').strip()
+                        try:
+                            if dims_env:
+                                parts = [int(x) for x in dims_env.replace(' ', '').split(',')]
+                                if len(parts) == 1:
+                                    resample.SamplingDimensions = [parts[0], parts[0], parts[0]]
+                                elif len(parts) >= 3:
+                                    resample.SamplingDimensions = [parts[0], parts[1], parts[2]]
+                                else:
+                                    resample.SamplingDimensions = [128, 128, 128]
                             else:
                                 resample.SamplingDimensions = [128, 128, 128]
-                        else:
+                        except Exception:
+                            print("Invalid PARAVIEW_VDB_DIMS; using 128^3")
                             resample.SamplingDimensions = [128, 128, 128]
-                    except Exception:
-                        print("Invalid PARAVIEW_VDB_DIMS; using 128^3")
-                        resample.SamplingDimensions = [128, 128, 128]
                     return resample
 
                 src_for_vdb = build_vdb_volume_source(active_source, data)
