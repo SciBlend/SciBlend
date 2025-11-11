@@ -15,7 +15,7 @@ def get_attribute_items(self, context):
             mesh_eval = obj_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
             try:
                 for attr in mesh_eval.attributes:
-                    if attr.data_type in {'FLOAT', 'FLOAT_VECTOR'}:
+                    if attr.data_type in {'FLOAT', 'FLOAT_VECTOR', 'INT', 'INT8', 'INT32', 'BOOLEAN'}:
                         desc = f"Domain: {attr.domain}, Type: {attr.data_type}"
                         items.append((attr.name, attr.name, desc))
             finally:
@@ -55,6 +55,12 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
                 elif attribute.data_type == 'FLOAT_VECTOR':
                     values = [data.vector.length for data in attribute.data]
                     all_values.extend(values)
+                elif attribute.data_type in {'INT', 'INT8', 'INT32'}:
+                    values = [float(data.value) for data in attribute.data]
+                    all_values.extend(values)
+                elif attribute.data_type == 'BOOLEAN':
+                    values = [float(data.value) for data in attribute.data]
+                    all_values.extend(values)
         if all_values:
             return (min(all_values), max(all_values))
         return (0, 1)
@@ -67,6 +73,10 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
         values = [data.value for data in attribute.data]
     elif attribute.data_type == 'FLOAT_VECTOR':
         values = [data.vector.length for data in attribute.data]
+    elif attribute.data_type in {'INT', 'INT8', 'INT32'}:
+        values = [float(data.value) for data in attribute.data]
+    elif attribute.data_type == 'BOOLEAN':
+        values = [float(data.value) for data in attribute.data]
     else:
         return (0, 1)
 
