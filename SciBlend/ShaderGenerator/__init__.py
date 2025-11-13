@@ -15,6 +15,7 @@ from .operators.create_shader import (
     MATERIAL_OT_create_shader,
     create_colormap_material,
 )
+from .operators.refresh_attributes import SHADER_OT_refresh_attributes
 from .ui.panel import MATERIAL_PT_shader_generator
 
 
@@ -28,6 +29,7 @@ __all__ = (
     'COLORRAMP_OT_load_custom',
     'COLORRAMP_OT_import_json',
     'MATERIAL_OT_create_shader',
+    'SHADER_OT_refresh_attributes',
     'MATERIAL_PT_shader_generator',
     'create_colormap_material',
 )
@@ -45,11 +47,21 @@ def register():
     bpy.utils.register_class(COLORRAMP_OT_load_custom)
     bpy.utils.register_class(COLORRAMP_OT_import_json)
     bpy.utils.register_class(MATERIAL_OT_create_shader)
+    bpy.utils.register_class(SHADER_OT_refresh_attributes)
     bpy.utils.register_class(MATERIAL_PT_shader_generator)
+    
+    from .utils.attributes import _cleanup_attribute_cache
+    if _cleanup_attribute_cache not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(_cleanup_attribute_cache)
 
 
 def unregister():
     """Unregister classes and remove scene properties."""
+    from .utils.attributes import _cleanup_attribute_cache, clear_attribute_cache
+    if _cleanup_attribute_cache in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(_cleanup_attribute_cache)
+    clear_attribute_cache() 
+    
     if hasattr(bpy.types.Scene, 'shader_generator_settings'):
         del bpy.types.Scene.shader_generator_settings
     if hasattr(bpy.types.Scene, 'custom_colorramp'):
@@ -62,6 +74,7 @@ def unregister():
     bpy.utils.unregister_class(COLORRAMP_OT_load_custom)
     bpy.utils.unregister_class(COLORRAMP_OT_import_json)
     bpy.utils.unregister_class(MATERIAL_OT_create_shader)
+    bpy.utils.unregister_class(SHADER_OT_refresh_attributes)
     bpy.utils.unregister_class(MATERIAL_PT_shader_generator)
 
 
