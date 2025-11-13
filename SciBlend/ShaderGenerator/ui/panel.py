@@ -8,6 +8,7 @@ from ..operators.colorramp import (
     COLORRAMP_OT_import_json,
 )
 from ..operators.create_shader import MATERIAL_OT_create_shader
+from ..operators.refresh_attributes import SHADER_OT_refresh_attributes
 
 
 class MATERIAL_PT_shader_generator(Panel):
@@ -40,6 +41,12 @@ class MATERIAL_PT_shader_generator(Panel):
         layout.separator()
 
         layout.label(text="Create Shader", icon='NODE_MATERIAL')
+        
+        row = layout.row(align=True)
+        refresh_op = row.operator(SHADER_OT_refresh_attributes.bl_idname, text="Refresh Attributes", icon='FILE_REFRESH')
+        if refresh_op:
+            refresh_op.all_objects = False
+        
         box = layout.box()
         col = box.column(align=True)
 
