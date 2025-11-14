@@ -254,6 +254,213 @@ def _ensure_slice_cube_object(volume_obj: bpy.types.Object) -> bpy.types.Object:
     
     return cube
 
+def _get_sequence_files(settings) -> list:
+    dirpath = getattr(settings, 'last_import_dir', '') or ''
+    try:
+        files = [f.name for f in settings.last_import_files] if len(settings.last_import_files) else []
+    except Exception:
+        files = []
+    if (not files) and getattr(getattr(settings, 'volume_object', None), 'data', None):
+        fp = getattr(settings.volume_object.data, 'filepath', '')
+        if fp and os.path.exists(fp):
+            dirpath = os.path.dirname(fp)
+            files = [os.path.basename(fp)]
+    return [dirpath, files]
+
+
+def _resolve_vdb_filepath_for_frame(context, settings) -> str:
+    dirpath, files = _get_sequence_files(settings)
+    if not files:
+        return ''
+    frame = getattr(getattr(context, 'scene', None), 'frame_current', 1) or 1
+    start = 1
+    offset = 0
+    try:
+        vd = getattr(settings.volume_object, 'data', None)
+        if vd is not None:
+            start = getattr(vd, 'frame_start', start) or start
+            offset = getattr(vd, 'frame_offset', offset) or offset
+    except Exception:
+        pass
+    idx = frame - start + offset
+    if idx < 0:
+        idx = 0
+    if idx >= len(files):
+        idx = len(files) - 1
+    name = files[int(idx)]
+    try:
+        return bpy.path.abspath(bpy.path.relpath(bpy.path.join(dirpath, name))) if hasattr(bpy.path, 'join') else os.path.join(dirpath, name)
+    except Exception:
+        return os.path.join(dirpath, name)
+
+
+def _compute_vdb_grid_min_max(filepath: str, grid_name: str, component_mode: str = 'MAG'):
+    global _LAST_RANGE_ERROR
+    _LAST_RANGE_ERROR = ""
+    if not filepath:
+        _LAST_RANGE_ERROR = "No filepath resolved for current frame."
+        return None
+    if not os.path.exists(filepath):
+        _LAST_RANGE_ERROR = f"File not found: {filepath}"
+        return None
+    if not grid_name:
+        _LAST_RANGE_ERROR = "No grid selected."
+        return None
+    key = (filepath, grid_name, component_mode)
+    if key in _RANGE_CACHE:
+        return _RANGE_CACHE[key]
+    try:
+        try:
+            import pyopenvdb as vdb
+        except Exception:
+            try:
+                import openvdb as vdb
+            except Exception:
+                _LAST_RANGE_ERROR = "pyopenvdb/openvdb is not installed."
+                return None
+        try:
+            grid = vdb.read(filepath, grid_name)
+        except Exception:
+            _LAST_RANGE_ERROR = f"Grid '{grid_name}' not found or cannot be read from {os.path.basename(filepath)}"
+            return None
+
+        min_v = float('inf')
+        max_v = float('-inf')
+
+        values_iter = None
+        for getter in (
+            getattr(grid, 'citerOnValues', None),
+            getattr(grid, 'iterOnValues', None),
+            getattr(grid, 'citerAllValues', None),
+            getattr(grid, 'iterAllValues', None),
+        ):
+            if callable(getter):
+                try:
+                    values_iter = getter()
+                    break
+                except Exception:
+                    continue
+        if values_iter is None:
+            try:
+                values_iter = grid.values()
+            except Exception:
+                pass
+        if values_iter is None:
+            _LAST_RANGE_ERROR = "Cannot iterate grid values."
+            stats = {'min': float('inf'), 'max': float('-inf')}
+            def _accumulate(x):
+                try:
+                    v = x
+                    if isinstance(v, (list, tuple)):
+                        s = 0.0
+                        for c in v:
+                            s += float(c) * float(c)
+                        v = s ** 0.5
+                    else:
+                        v = float(v)
+                    if v < stats['min']:
+                        stats['min'] = v
+                    if v > stats['max']:
+                        stats['max'] = v
+                except Exception:
+                    pass
+                return x
+            try:
+                if hasattr(grid, 'mapOn') and callable(getattr(grid, 'mapOn')):
+                    grid.mapOn(_accumulate)
+                    min_v, max_v = stats['min'], stats['max']
+                elif hasattr(grid, 'mapAll') and callable(getattr(grid, 'mapAll')):
+                    grid.mapAll(_accumulate)
+                    min_v, max_v = stats['min'], stats['max']
+                else:
+                    try:
+                        bb = grid.evalActiveVoxelBoundingBox()
+                        if not bb or not isinstance(bb, (tuple, list)) or len(bb) != 2:
+                            return None
+                        (imin, jmin, kmin), (imax, jmax, kmax) = bb
+                        shape = (imax - imin + 1, jmax - jmin + 1, kmax - kmin + 1)
+                        import numpy as np
+                        arr = None
+                        try:
+                            arr = np.empty(shape + (3,), dtype=np.float32)
+                            grid.copyToArray(arr, ijk=(imin, jmin, kmin))
+                            vec = arr.reshape(-1, 3).astype(np.float64)
+                            if component_mode == 'X':
+                                comp = vec[:, 0]
+                            elif component_mode == 'Y':
+                                comp = vec[:, 1]
+                            elif component_mode == 'Z':
+                                comp = vec[:, 2]
+                            else:
+                                comp = np.sqrt((vec * vec).sum(axis=1))
+                            min_v = float(comp.min(initial=float('inf')))
+                            max_v = float(comp.max(initial=float('-inf')))
+                        except Exception:
+                            arr = np.empty(shape, dtype=np.float32)
+                            grid.copyToArray(arr, ijk=(imin, jmin, kmin))
+                            bg = None
+                            try:
+                                bg = getattr(grid, 'background', None)
+                            except Exception:
+                                bg = None
+                            if bg is not None:
+                                try:
+                                    bgf = float(bg)
+                                    mask = arr != bgf
+                                    if mask.any():
+                                        min_v = float(arr[mask].min(initial=float('inf')))
+                                        max_v = float(arr[mask].max(initial=float('-inf')))
+                                    else:
+                                        min_v = float(arr.min(initial=float('inf')))
+                                        max_v = float(arr.max(initial=float('-inf')))
+                                except Exception:
+                                    min_v = float(arr.min(initial=float('inf')))
+                                    max_v = float(arr.max(initial=float('-inf')))
+                            else:
+                                min_v = float(arr.min(initial=float('inf')))
+                                max_v = float(arr.max(initial=float('-inf')))
+                    except Exception:
+                        return None
+            except Exception:
+                return None
+        else:
+            for item in values_iter:
+                try:
+                    val = getattr(item, 'value', item)
+                except Exception:
+                    val = item
+                try:
+                    if isinstance(val, (list, tuple)):
+                        if component_mode == 'X':
+                            val = float(val[0])
+                        elif component_mode == 'Y':
+                            val = float(val[1])
+                        elif component_mode == 'Z':
+                            val = float(val[2])
+                        else:
+                            comp = 0.0
+                            for c in val:
+                                comp += float(c) * float(c)
+                            val = comp ** 0.5
+                    else:
+                        val = float(val)
+                except Exception:
+                    continue
+                if val < min_v:
+                    min_v = val
+                if val > max_v:
+                    max_v = val
+
+        if min_v is float('inf') or max_v is float('-inf'):
+            _LAST_RANGE_ERROR = "Grid has no values."
+            return None
+        result = (float(min_v), float(max_v))
+        _RANGE_CACHE[key] = result
+        return result
+    except Exception as e:
+        _LAST_RANGE_ERROR = f"Unexpected error: {e}"
+        return None
+
 
 def ensure_volume_material_for_object(context, obj, settings):
     mat_name = "SciBlend_Volume"
@@ -273,13 +480,39 @@ def ensure_volume_material_for_object(context, obj, settings):
     attr.attribute_type = 'GEOMETRY'
     attr.attribute_name = settings.grid_name or "density"
     attr.location = (-600, 0)
+
+    sep_xyz = nt.nodes.new('ShaderNodeSeparateXYZ'); sep_xyz.location = (-500, -120)
+    vec_len = nt.nodes.new('ShaderNodeVectorMath'); vec_len.operation = 'LENGTH'; vec_len.location = (-500, -240)
+
     mapr = nt.nodes.new('ShaderNodeMapRange'); mapr.location = (-400, 0)
+
+
+    try:
+        if getattr(settings, 'auto_range', False) and getattr(settings, 'grid_name', ''):
+            fp = _resolve_vdb_filepath_for_frame(context, settings)
+            rng = _compute_vdb_grid_min_max(fp, settings.grid_name, getattr(settings, 'component_mode', 'MAG'))
+            if rng:
+                settings.from_min, settings.from_max = rng
+    except Exception:
+        pass
+    try:
+        mapr.clamp = True
+    except Exception:
+        pass
     mapr.inputs[1].default_value = settings.from_min
     mapr.inputs[2].default_value = settings.from_max
     mapr.inputs[3].default_value = 0.0
     mapr.inputs[4].default_value = 1.0
-    math_mul = nt.nodes.new('ShaderNodeMath'); math_mul.operation = 'MULTIPLY'; math_mul.location = (-100, -50)
-    math_mul.inputs[1].default_value = settings.density_scale
+    
+    from ..utils.volume_node_groups import get_volume_density_node_group
+    density_ctrl = nt.nodes.new('ShaderNodeGroup')
+    density_ctrl.node_tree = get_volume_density_node_group()
+    density_ctrl.location = (-100, -50)
+    density_ctrl.inputs['Enable Lower Clip'].default_value = settings.clip_min
+    density_ctrl.inputs['Enable Upper Clip'].default_value = settings.clip_max
+    density_ctrl.inputs['Base Density'].default_value = settings.alpha_baseline
+    density_ctrl.inputs['Scale Factor'].default_value = settings.alpha_multiplier
+    
     pv = nt.nodes.new('ShaderNodeVolumePrincipled'); pv.location = (200, 0)
     pv.inputs[4].default_value = settings.anisotropy
     pv.inputs[6].default_value = settings.emission_strength
@@ -292,11 +525,43 @@ def ensure_volume_material_for_object(context, obj, settings):
     tex = nt.nodes.new('ShaderNodeTexCoord'); tex.location = (-200, -250)
     slice_group = nt.nodes.new('ShaderNodeGroup'); slice_group.node_tree = _ensure_node_group_slice_cube(); slice_group.location = (350, -200)
 
-    nt.links.new(attr.outputs[0], mapr.inputs[0])
-    nt.links.new(mapr.outputs[0], math_mul.inputs[0])
+    src_for_map = None
+    vout = None
+    try:
+        vout = attr.outputs.get('Vector') if hasattr(attr.outputs, 'get') else None
+        if vout is None:
+            vout = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VECTOR'), None)
+    except Exception:
+        vout = None
+    
+    if vout is not None:
+        nt.links.new(vout, sep_xyz.inputs[0])
+        nt.links.new(vout, vec_len.inputs[0])
+        mode = getattr(settings, 'component_mode', 'MAG')
+        if mode == 'X':
+            src_for_map = sep_xyz.outputs[0]
+        elif mode == 'Y':
+            src_for_map = sep_xyz.outputs[1]
+        elif mode == 'Z':
+            src_for_map = sep_xyz.outputs[2]
+        else:  # 'MAG'
+            try:
+                src_for_map = vec_len.outputs['Value']
+            except Exception:
+                src_for_map = vec_len.outputs[1] if len(vec_len.outputs) > 1 else vec_len.outputs[0]
+    else:
+        try:
+            src_for_map = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VALUE'), None)
+        except Exception:
+            src_for_map = None
+    
+    if src_for_map is not None:
+        nt.links.new(src_for_map, mapr.inputs[0])
+
+    nt.links.new(mapr.outputs[0], density_ctrl.inputs['Normalized Value'])
     nt.links.new(mapr.outputs[0], cr.inputs[0])
     nt.links.new(cr.outputs[0], pv.inputs[0])
-    nt.links.new(math_mul.outputs[0], pv.inputs[2])
+    nt.links.new(density_ctrl.outputs['Density'], pv.inputs[2])
     nt.links.new(pv.outputs[0], slice_group.inputs[0])
     nt.links.new(tex.outputs[3], slice_group.inputs[1])
     nt.links.new(slice_group.outputs[0], out.inputs[1])
@@ -330,6 +595,15 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
         if not s.volume_object or s.volume_object.type != 'VOLUME':
             self.report({'ERROR'}, "Select a Volume object")
             return {'CANCELLED'}
+
+        try:
+            if getattr(s, 'auto_range', False) and getattr(s, 'grid_name', ''):
+                fp = _resolve_vdb_filepath_for_frame(context, s)
+                rng = _compute_vdb_grid_min_max(fp, s.grid_name, getattr(s, 'component_mode', 'MAG'))
+                if rng:
+                    s.from_min, s.from_max = rng
+        except Exception:
+            pass
         mat = ensure_volume_material_for_object(context, s.volume_object, s)
         nt = mat.node_tree
         attr = next((n for n in nt.nodes if n.type == 'ATTRIBUTE'), None)
@@ -339,9 +613,61 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
         if mapr:
             mapr.inputs[1].default_value = s.from_min
             mapr.inputs[2].default_value = s.from_max
-        math_mul = next((n for n in nt.nodes if getattr(n, 'operation', '') == 'MULTIPLY'), None)
-        if math_mul:
-            math_mul.inputs[1].default_value = s.density_scale
+        sep_xyz = next((n for n in nt.nodes if n.type == 'SEPARATE_XYZ'), None)
+        vec_len = next((n for n in nt.nodes if n.type == 'VECT_MATH' and getattr(n, 'operation', '') == 'LENGTH'), None)
+        if mapr and attr and sep_xyz and vec_len:
+            try:
+                for link in list(mapr.inputs[0].links):
+                    nt.links.remove(link)
+            except Exception:
+                pass
+            try:
+                for link in list(sep_xyz.inputs[0].links):
+                    nt.links.remove(link)
+                for link in list(vec_len.inputs[0].links):
+                    nt.links.remove(link)
+            except Exception:
+                pass
+            vout = None
+            try:
+                vout = attr.outputs.get('Vector') if hasattr(attr.outputs, 'get') else None
+                if vout is None:
+                    vout = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VECTOR'), None)
+            except Exception:
+                vout = None
+            src_for_map = None
+            if vout is not None:
+                nt.links.new(vout, sep_xyz.inputs[0])
+                nt.links.new(vout, vec_len.inputs[0])
+                mode = getattr(s, 'component_mode', 'MAG')
+                if mode == 'X':
+                    src_for_map = sep_xyz.outputs[0]
+                elif mode == 'Y':
+                    src_for_map = sep_xyz.outputs[1]
+                elif mode == 'Z':
+                    src_for_map = sep_xyz.outputs[2]
+                else:  # 'MAG'
+                    try:
+                        src_for_map = vec_len.outputs['Value']
+                    except Exception:
+                        src_for_map = vec_len.outputs[1] if len(vec_len.outputs) > 1 else vec_len.outputs[0]
+            else:
+                try:
+                    src_for_map = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VALUE'), None)
+                except Exception:
+                    src_for_map = None
+            if src_for_map is not None:
+                nt.links.new(src_for_map, mapr.inputs[0])
+
+        density_ctrl = next((n for n in nt.nodes if n.type == 'GROUP' and n.node_tree and n.node_tree.name == 'SciBlend_Volume_Density'), None)
+        if density_ctrl:
+            try:
+                density_ctrl.inputs['Enable Lower Clip'].default_value = s.clip_min
+                density_ctrl.inputs['Enable Upper Clip'].default_value = s.clip_max
+                density_ctrl.inputs['Base Density'].default_value = s.alpha_baseline
+                density_ctrl.inputs['Scale Factor'].default_value = s.alpha_multiplier
+            except Exception:
+                pass
         pv = next((n for n in nt.nodes if n.type == 'VOLUME_PRINCIPLED'), None)
         if pv:
             pv.inputs[4].default_value = s.anisotropy
@@ -402,6 +728,8 @@ class FILTERS_OT_volume_compute_range(bpy.types.Operator):
                 for v in grid.values():
                     if v < min_v: min_v = v
                     if v > max_v: max_v = v
+            fp = _resolve_vdb_filepath_for_frame(context, s)
+            rng = _compute_vdb_grid_min_max(fp, s.grid_name, getattr(s, 'component_mode', 'MAG'))
         except Exception:
             pass
         if min_v is None or max_v is None:

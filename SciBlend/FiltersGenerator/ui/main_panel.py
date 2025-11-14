@@ -82,15 +82,23 @@ class FILTERSGENERATOR_PT_volume_filter(bpy.types.Panel):
         col = box.column(align=True)
         col.prop(s, "from_min")
         col.prop(s, "from_max")
-        col.prop(s, "density_scale")
+        
+        box2 = layout.box()
+        box2.label(text="Density/Alpha", icon='MOD_OPACITY')
+        col2 = box2.column(align=True)
+        col2.prop(s, "alpha_baseline")
+        col2.prop(s, "alpha_multiplier")
+        row2 = col2.row(align=True)
+        row2.prop(s, "clip_min")
+        row2.prop(s, "clip_max")
+
+        box3 = layout.box()
+        box3.label(text="Vector Component", icon='ORIENTATION_GIMBAL')
+        col3 = box3.column(align=True)
+        col3.prop(s, "component_mode", text="Component")
+        
         col.prop(s, "anisotropy")
         col.prop(s, "emission_strength")
-
-        box = layout.box()
-        box.label(text="Slice", icon='MOD_SOLIDIFY')
-        col = box.column(align=True)
-        col.prop(s, "slice_object", text="Slicing Object")
-        col.prop(s, "slice_invert")
 
         layout.operator("filters.volume_update_material", text="Update Material", icon='SHADING_RENDERED')
 
@@ -167,24 +175,4 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
         row.prop(cl, "plane_object", text="Clip Plane")
         row.operator("filters.clip_ensure_plane", text="Ensure", icon='MESH_PLANE')
         col.prop(cl, "side", text="Side")
-        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA')
-
-        box = layout.box()
-        box.label(text="Calculator", icon='DRIVER')
-        k = getattr(context.scene, "filters_calculator_settings", None)
-        if not k:
-            box.label(text="Calculator settings unavailable", icon='ERROR')
-        else:
-            col = box.column(align=True)
-            col.prop(k, "target_object", text="Domain Mesh")
-            col.prop(k, "domain", text="Domain")
-            col.prop(k, "output_name", text="Output")
-            col.prop(k, "expression", text="Expression")
-            # Variable helper
-            row = col.row(align=True)
-            row.prop(k, "variable_enum", text="Attributes")
-            row.operator("filters.calculator_append_attr", text="Append", icon='ADD')
-            row = col.row(align=True)
-            row.prop(k, "function_enum", text="Functions")
-            row.operator("filters.calculator_append_func", text="Append", icon='ADD')
-            col.operator("filters.calculator_apply", text="Apply", icon='CHECKMARK') 
+        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA') 
