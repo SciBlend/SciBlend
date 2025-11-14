@@ -47,11 +47,11 @@ def apply_colormap_to_ramp(colormap_id: str, ramp: bpy.types.ShaderNodeValToRGB)
             colors = interpolate_colormap(colors, 32)
     except Exception:
         pass
-
+    
     cr = ramp.color_ramp
     while len(cr.elements) > 1:
         cr.elements.remove(cr.elements[-1])
-
+    
     for i, color_data in enumerate(colors):
         if i == 0:
             elem = cr.elements[0]
