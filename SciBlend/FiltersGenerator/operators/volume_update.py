@@ -194,10 +194,15 @@ def _ensure_slice_cube_material():
 
 
 def _ensure_slice_cube_object(volume_obj: bpy.types.Object) -> bpy.types.Object:
-    name = f"Slicer_{volume_obj.name}"
+    import hashlib
+    vol_hash = hashlib.md5(volume_obj.name.encode()).hexdigest()[:8]
+    name = f"Slicer_{vol_hash}"
+    
     cube = bpy.data.objects.get(name)
+    
     if cube is None or cube.type != 'MESH':
-        mesh = bpy.data.meshes.new(f"SlicerMesh_{volume_obj.name}")
+        mesh_name = f"SlicerMesh_{vol_hash}"
+        mesh = bpy.data.meshes.new(mesh_name)
         verts = [
             (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0), (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0),
             (-1.0, -1.0,  1.0), (1.0, -1.0,  1.0), (1.0, 1.0,  1.0), (-1.0, 1.0,  1.0),
@@ -210,11 +215,13 @@ def _ensure_slice_cube_object(volume_obj: bpy.types.Object) -> bpy.types.Object:
         mesh.from_pydata(verts, [], faces)
         mesh.update()
         cube = bpy.data.objects.new(name, mesh)
+        
         colls = volume_obj.users_collection
         if colls:
             colls[0].objects.link(cube)
         else:
             bpy.context.collection.objects.link(cube)
+        
         cube.display_type = 'WIRE'
         cube.show_in_front = True
         cube.hide_viewport = False
@@ -590,11 +597,6 @@ def ensure_volume_material_for_object(context, obj, item):
         item.slice_object = cube
     except Exception as e:
         print(f"Error setting slice_object: {e}")
-    
-    if not tex.object:
-        print(f"WARNING: TEX_COORD node has no object assigned!")
-    else:
-        print(f"Slicer '{cube.name}' assigned to TEX_COORD for volume '{obj.name}'")
 
     if obj.data and hasattr(obj.data, 'materials'):
         if len(obj.data.materials) == 0:
@@ -649,6 +651,7 @@ def update_volume_item_material(context, item):
         
         if not mat or not mat.use_nodes:
             mat = ensure_volume_material_for_object(context, item.volume_object, item)
+            return mat
         
         nt = mat.node_tree
         
@@ -741,21 +744,33 @@ def update_volume_item_material(context, item):
             except Exception:
                 pass
         
-        cube = _ensure_slice_cube_object(item.volume_object)
         tex = next((n for n in nt.nodes if n.type == 'TEX_COORD'), None)
         if tex:
-            try:
-                tex.object = cube
-                print(f"Updated: Slicer '{cube.name}' assigned to TEX_COORD for volume '{item.volume_object.name}'")
-                if not tex.object:
-                    print(f"WARNING: Assignment failed, TEX_COORD still has no object!")
-            except Exception as e:
-                print(f"Error in update setting tex.object: {e}")
-        
-        try:
-            item.slice_object = cube
-        except Exception:
-            pass
+            current_tex_obj = getattr(tex, 'object', None)
+            
+            import hashlib
+            vol_hash = hashlib.md5(item.volume_object.name.encode()).hexdigest()[:8]
+            expected_slicer_name = f"Slicer_{vol_hash}"
+            
+            needs_update = (
+                current_tex_obj is None or 
+                current_tex_obj.name != expected_slicer_name or
+                current_tex_obj.type != 'MESH'
+            )
+            
+            if needs_update:
+                cube = _ensure_slice_cube_object(item.volume_object)
+                try:
+                    tex.object = cube
+                except Exception as e:
+                    print(f"Error setting tex.object: {e}")
+                
+                try:
+                    item.slice_object = cube
+                except Exception as e:
+                    print(f"Error setting item.slice_object: {e}")
+            else:
+                cube = current_tex_obj
         
         slice_group = next((n for n in nt.nodes if n.type == 'GROUP' and n.node_tree and n.node_tree.name == 'Slice Cube'), None)
         if slice_group:
@@ -767,9 +782,7 @@ def update_volume_item_material(context, item):
                     tex_output = tex.outputs[3]
                     slice_input = slice_group.inputs[1]
                     is_connected = any(link.to_socket == slice_input for link in nt.links)
-                    print(f"TEX_COORD->Slice Group connection exists: {is_connected}")
                     if not is_connected:
-                        print(f"WARNING: TEX_COORD not connected to Slice Group! Reconnecting...")
                         nt.links.new(tex_output, slice_input)
             except Exception as e:
                 print(f"Error updating slice group: {e}")
@@ -784,7 +797,6 @@ def update_volume_item_material(context, item):
             try:
                 item.volume_object.data.render.space = 'WORLD'
                 item.volume_object.data.render.step_size = item.step_size
-                print(f"Updated volume step size to {item.step_size}")
             except Exception as e:
                 print(f"Could not set volume step size: {e}")
         
@@ -863,11 +875,54 @@ class FILTERS_OT_volume_compute_range(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class FILTERS_OT_volume_cleanup_slicers(bpy.types.Operator):
+    """
+    Clean up orphaned slicer objects for the active volume.
+    """
+    bl_idname = "filters.volume_cleanup_slicers"
+    bl_label = "Clean Up Orphaned Slicers"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        from ..properties.volume_settings import get_active_volume_item
+        
+        item = get_active_volume_item(context)
+        if not item or not item.volume_object:
+            self.report({'ERROR'}, "No active volume item")
+            return {'CANCELLED'}
+        
+        import hashlib
+        vol_hash = hashlib.md5(item.volume_object.name.encode()).hexdigest()[:8]
+        correct_slicer_name = f"Slicer_{vol_hash}"
+        
+        removed_count = 0
+        removed_names = []
+        
+        for obj in list(bpy.data.objects):
+            if 'Slicer' in obj.name and obj.name != correct_slicer_name:
+                if obj.name.startswith('Slicer_') and (
+                    item.volume_object.name[:30] in obj.name or
+                    vol_hash in obj.name
+                ):
+                    removed_names.append(obj.name)
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                    removed_count += 1
+        
+        if removed_count > 0:
+            self.report({'INFO'}, f"Removed {removed_count} orphaned slicers: {', '.join(removed_names[:3])}")
+        else:
+            self.report({'INFO'}, f"No orphaned slicers found for {item.volume_object.name}")
+        
+        return {'FINISHED'}
+
+
 def register():
     bpy.utils.register_class(FILTERS_OT_volume_update_material)
     bpy.utils.register_class(FILTERS_OT_volume_compute_range)
+    bpy.utils.register_class(FILTERS_OT_volume_cleanup_slicers)
 
 
 def unregister():
+    bpy.utils.unregister_class(FILTERS_OT_volume_cleanup_slicers)
     bpy.utils.unregister_class(FILTERS_OT_volume_compute_range)
     bpy.utils.unregister_class(FILTERS_OT_volume_update_material) 

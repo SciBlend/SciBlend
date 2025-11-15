@@ -101,6 +101,15 @@ class FILTERS_OT_volume_import_vdb_sequence(Operator, ImportHelper):
         from .volume_update import ensure_volume_material_for_object
         ensure_volume_material_for_object(context, obj, item)
         
+        from ..properties.volume_item import _signature
+        try:
+            sig = _signature(item)
+            if sig is not None:
+                item._last_applied_signature = sig
+                item._last_scheduled_signature = sig
+        except Exception:
+            pass
+        
         if obj.data and hasattr(obj.data, 'render'):
             try:
                 obj.data.render.space = 'OBJECT'

@@ -36,10 +36,10 @@ def _schedule_volume_item_update(item):
             result = update_volume_item_material(bpy.context, item)
             
             if result is not None:
-                if pending_sig is None:
-                    from .volume_item import _signature
-                    pending_sig = _signature(item)
-                item._last_applied_signature = pending_sig
+                from .volume_item import _signature
+                final_sig = _signature(item)
+                item._last_applied_signature = final_sig
+                item._last_scheduled_signature = final_sig
         except Exception as e:
             import traceback
             print(f"Error in _do_update: {e}")

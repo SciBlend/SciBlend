@@ -2,7 +2,7 @@ from .create_emitter import FILTERS_OT_create_emitter
 from .place_emitter import FILTERS_OT_place_emitter
 from .generate_streamline import FILTERS_OT_generate_streamline
 from .volume_import import FILTERS_OT_volume_import_vdb_sequence
-from .volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range
+from .volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range, FILTERS_OT_volume_cleanup_slicers
 from .volume_list_operators import (
     FILTERS_OT_volume_item_add,
     FILTERS_OT_volume_item_remove,

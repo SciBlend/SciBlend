@@ -9,7 +9,6 @@ _UPDATING_NODES = False
 def _signature(item):
     try:
         vo = getattr(item, 'volume_object', None)
-        so = getattr(item, 'slice_object', None)
         return (
             getattr(vo, 'name', None),
             getattr(item, 'grid_name', None),
@@ -25,7 +24,6 @@ def _signature(item):
             bool(getattr(item, 'clip_max', False)),
             float(getattr(item, 'anisotropy', 0.0)),
             float(getattr(item, 'emission_strength', 0.0)),
-            getattr(so, 'name', None),
             bool(getattr(item, 'slice_invert', False)),
             getattr(item, 'component_mode', None),
         )
