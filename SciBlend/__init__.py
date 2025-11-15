@@ -506,6 +506,7 @@ FILTERS_AVAILABLE = False
 filters_classes = ()
 try:
     from .FiltersGenerator.properties.emitter_settings import FiltersEmitterSettings
+    from .FiltersGenerator.properties.volume_item import VolumeItem
     from .FiltersGenerator.properties.volume_settings import VolumeRenderingSettings
     from .FiltersGenerator.properties.threshold_settings import FiltersThresholdSettings
     from .FiltersGenerator.properties.contour_settings import FiltersContourSettings
@@ -517,18 +518,29 @@ try:
     from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
     from .FiltersGenerator.operators.volume_import import FILTERS_OT_volume_import_vdb_sequence
     from .FiltersGenerator.operators.volume_update import FILTERS_OT_volume_update_material, FILTERS_OT_volume_compute_range
+    from .FiltersGenerator.operators.volume_list_operators import (
+        FILTERS_OT_volume_item_add,
+        FILTERS_OT_volume_item_remove,
+        FILTERS_OT_volume_item_move_up,
+        FILTERS_OT_volume_item_move_down,
+    )
     from .FiltersGenerator.operators.threshold_live import FILTERS_OT_build_threshold_surface
     from .FiltersGenerator.operators.contour_live import FILTERS_OT_build_contour_surface
     from .FiltersGenerator.operators.clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surface
     from .FiltersGenerator.operators.slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
     from .FiltersGenerator.operators.calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
+    from .FiltersGenerator.ui.volume_list import FILTERS_UL_volume_list
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_geometry_filters
+    
+    VolumeRenderingSettings.__annotations__['volume_items'] = bpy.props.CollectionProperty(type=VolumeItem)
+    
     FILTERS_AVAILABLE = True
     filters_classes = (
         FiltersEmitterSettings,
+        VolumeItem,
         VolumeRenderingSettings,
         FiltersThresholdSettings,
         FiltersContourSettings,
@@ -541,6 +553,10 @@ try:
         FILTERS_OT_volume_import_vdb_sequence,
         FILTERS_OT_volume_update_material,
         FILTERS_OT_volume_compute_range,
+        FILTERS_OT_volume_item_add,
+        FILTERS_OT_volume_item_remove,
+        FILTERS_OT_volume_item_move_up,
+        FILTERS_OT_volume_item_move_down,
         FILTERS_OT_build_threshold_surface,
         FILTERS_OT_build_contour_surface,
         FILTERS_OT_clip_ensure_plane,
@@ -551,6 +567,7 @@ try:
         FILTERS_OT_calculator_append_var,
         FILTERS_OT_calculator_append_attr,
         FILTERS_OT_calculator_append_func,
+        FILTERS_UL_volume_list,
         FILTERSGENERATOR_PT_main_panel,
         FILTERSGENERATOR_PT_stream_tracers,
         FILTERSGENERATOR_PT_volume_filter,
