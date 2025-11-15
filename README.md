@@ -52,7 +52,8 @@ To install the latest development version:
 1. Go to GitHub Actions: https://github.com/SciBlend/SciBlend/actions
 2. Select the latest successful workflow run
 3. Download the artifact for your platform
-4. Install manually following the steps above
+4. Extract the downloaded zip to get the actual extension zip file
+5. Install manually following the steps above
 
 After enabling, open View3D > Sidebar > SciBlend. 
 
