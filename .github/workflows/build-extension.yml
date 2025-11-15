@@ -71,6 +71,7 @@ jobs:
         with:
           name: sciblend-linux-x64
           path: dist/*linux*.zip
+          compression-level: 0
           if-no-files-found: ignore
 
       - name: Upload artifact (windows-x64)
@@ -78,6 +79,7 @@ jobs:
         with:
           name: sciblend-windows-x64
           path: dist/*windows*.zip
+          compression-level: 0
           if-no-files-found: ignore
 
       - name: Upload artifact (macos-x64)
@@ -85,6 +87,7 @@ jobs:
         with:
           name: sciblend-macos-x64
           path: dist/*macos_x64*.zip
+          compression-level: 0
           if-no-files-found: ignore
 
       - name: Upload artifact (macos-arm64)
@@ -92,4 +95,5 @@ jobs:
         with:
           name: sciblend-macos-arm64
           path: dist/*macos_arm64*.zip
+          compression-level: 0
           if-no-files-found: ignore
