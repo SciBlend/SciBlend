@@ -64,43 +64,84 @@ class FILTERSGENERATOR_PT_volume_filter(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        s = getattr(context.scene, "filters_volume_settings", None)
-        if not s:
+        settings = getattr(context.scene, "filters_volume_settings", None)
+        if not settings:
             layout.label(text="Volume settings unavailable", icon='ERROR')
             return
 
         layout.operator("filters.volume_import_vdb_sequence", text="Import VDB Sequence", icon='FILE_FOLDER')
-        layout.prop(s, "volume_object", text="Volume")
-        layout.prop(s, "grid_name", text="Grid")
-        layout.prop(s, "colormap", text="Colormap")
+        
+        box = layout.box()
+        box.label(text="Volumes", icon='OUTLINER_OB_VOLUME')
+        row = box.row()
+        row.template_list(
+            "FILTERS_UL_volume_list",
+            "",
+            settings,
+            "volume_items",
+            settings,
+            "volume_items_index",
+            rows=3
+        )
+        
+        col = row.column(align=True)
+        col.operator("filters.volume_item_add", text="", icon='ADD')
+        col.operator("filters.volume_item_remove", text="", icon='REMOVE')
+        col.separator()
+        col.operator("filters.volume_item_move_up", text="", icon='TRIA_UP')
+        col.operator("filters.volume_item_move_down", text="", icon='TRIA_DOWN')
+        
+        if not settings.volume_items:
+            layout.label(text="No volumes in list", icon='INFO')
+            return
+        
+        if settings.volume_items_index >= len(settings.volume_items):
+            return
+        
+        item = settings.volume_items[settings.volume_items_index]
+        
+        box = layout.box()
+        box.label(text=f"Volume: {item.name}", icon='VOLUME_DATA')
+        col = box.column(align=True)
+        col.prop(item, "volume_object", text="Object")
+        col.prop(item, "grid_name", text="Grid")
+        col.prop(item, "colormap", text="Colormap")
 
         box = layout.box()
         box.label(text="Range & Density", icon='SEQ_LUMA_WAVEFORM')
         row = box.row(align=True)
-        row.prop(s, "auto_range")
+        row.prop(item, "auto_range")
         row.operator("filters.volume_compute_range", text="Compute Range", icon='IPO_CONSTANT')
         col = box.column(align=True)
-        col.prop(s, "from_min")
-        col.prop(s, "from_max")
+        col.prop(item, "from_min")
+        col.prop(item, "from_max")
         
         box2 = layout.box()
         box2.label(text="Density/Alpha", icon='MOD_OPACITY')
         col2 = box2.column(align=True)
-        col2.prop(s, "alpha_baseline")
-        col2.prop(s, "alpha_multiplier")
+        col2.prop(item, "alpha_baseline")
+        col2.prop(item, "alpha_multiplier")
         row2 = col2.row(align=True)
-        row2.prop(s, "clip_min")
-        row2.prop(s, "clip_max")
+        row2.prop(item, "clip_min")
+        row2.prop(item, "clip_max")
+        
+        box_render = layout.box()
+        box_render.label(text="Volume Rendering", icon='SHADING_RENDERED')
+        col_render = box_render.column(align=True)
+        col_render.prop(item, "opacity_unit_distance")
+        col_render.prop(item, "step_size")
 
         box3 = layout.box()
         box3.label(text="Vector Component", icon='ORIENTATION_GIMBAL')
         col3 = box3.column(align=True)
-        col3.prop(s, "component_mode", text="Component")
+        col3.prop(item, "component_mode", text="Component")
         
-        col.prop(s, "anisotropy")
-        col.prop(s, "emission_strength")
+        col.prop(item, "anisotropy")
+        col.prop(item, "emission_strength")
 
-        layout.operator("filters.volume_update_material", text="Update Material", icon='SHADING_RENDERED')
+        row = layout.row(align=True)
+        row.operator("filters.volume_update_material", text="Update Material", icon='FILE_REFRESH')
+        row.operator("filters.volume_regenerate_material", text="Regenerate", icon='SHADERFX')
 
 
 class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):

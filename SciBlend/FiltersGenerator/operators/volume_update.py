@@ -3,6 +3,10 @@ from mathutils import Vector
 import os
 
 
+_RANGE_CACHE = {}
+_LAST_RANGE_ERROR = ""
+
+
 def _ensure_node_group_elementwise_less_than():
     ng = bpy.data.node_groups.get("Element-wise LESS_THAN")
     if ng:
@@ -190,10 +194,10 @@ def _ensure_slice_cube_material():
 
 
 def _ensure_slice_cube_object(volume_obj: bpy.types.Object) -> bpy.types.Object:
-    name = "slice cube"
+    name = f"Slicer_{volume_obj.name}"
     cube = bpy.data.objects.get(name)
     if cube is None or cube.type != 'MESH':
-        mesh = bpy.data.meshes.new("SliceCubeMesh")
+        mesh = bpy.data.meshes.new(f"SlicerMesh_{volume_obj.name}")
         verts = [
             (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0), (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0),
             (-1.0, -1.0,  1.0), (1.0, -1.0,  1.0), (1.0, 1.0,  1.0), (-1.0, 1.0,  1.0),
@@ -262,9 +266,11 @@ def _get_sequence_files(settings) -> list:
         files = []
     if (not files) and getattr(getattr(settings, 'volume_object', None), 'data', None):
         fp = getattr(settings.volume_object.data, 'filepath', '')
-        if fp and os.path.exists(fp):
-            dirpath = os.path.dirname(fp)
-            files = [os.path.basename(fp)]
+        if fp:
+            abs_fp = bpy.path.abspath(fp)
+            if os.path.exists(abs_fp):
+                dirpath = os.path.dirname(abs_fp)
+                files = [os.path.basename(abs_fp)]
     return [dirpath, files]
 
 
@@ -311,13 +317,10 @@ def _compute_vdb_grid_min_max(filepath: str, grid_name: str, component_mode: str
         return _RANGE_CACHE[key]
     try:
         try:
-            import pyopenvdb as vdb
-        except Exception:
-            try:
-                import openvdb as vdb
-            except Exception:
-                _LAST_RANGE_ERROR = "pyopenvdb/openvdb is not installed."
-                return None
+            import openvdb as vdb
+        except Exception as e:
+            _LAST_RANGE_ERROR = f"openvdb module not available: {e}"
+            return None
         try:
             grid = vdb.read(filepath, grid_name)
         except Exception:
@@ -462,8 +465,11 @@ def _compute_vdb_grid_min_max(filepath: str, grid_name: str, component_mode: str
         return None
 
 
-def ensure_volume_material_for_object(context, obj, settings):
-    mat_name = "SciBlend_Volume"
+def ensure_volume_material_for_object(context, obj, item):
+    """
+    Create or update a volume material for a specific object using settings from a VolumeItem.
+    """
+    mat_name = f"SciBlend_Volume_{obj.name}"
     mat = None
     for m in bpy.data.materials:
         if m.name == mat_name:
@@ -478,7 +484,7 @@ def ensure_volume_material_for_object(context, obj, settings):
     out.location = (500, 0)
     attr = nt.nodes.new('ShaderNodeAttribute')
     attr.attribute_type = 'GEOMETRY'
-    attr.attribute_name = settings.grid_name or "density"
+    attr.attribute_name = item.grid_name or "density"
     attr.location = (-600, 0)
 
     sep_xyz = nt.nodes.new('ShaderNodeSeparateXYZ'); sep_xyz.location = (-500, -120)
@@ -488,19 +494,26 @@ def ensure_volume_material_for_object(context, obj, settings):
 
 
     try:
-        if getattr(settings, 'auto_range', False) and getattr(settings, 'grid_name', ''):
-            fp = _resolve_vdb_filepath_for_frame(context, settings)
-            rng = _compute_vdb_grid_min_max(fp, settings.grid_name, getattr(settings, 'component_mode', 'MAG'))
+        if getattr(item, 'auto_range', False) and getattr(item, 'grid_name', ''):
+            fp = _resolve_vdb_filepath_for_frame(context, item)
+            if not fp and obj and obj.data and hasattr(obj.data, 'filepath'):
+                fp = bpy.path.abspath(obj.data.filepath)
+            rng = _compute_vdb_grid_min_max(fp, item.grid_name, getattr(item, 'component_mode', 'MAG'))
             if rng:
-                settings.from_min, settings.from_max = rng
-    except Exception:
-        pass
+                item.from_min, item.from_max = rng
+                print(f"Auto-computed range for '{item.grid_name}': [{item.from_min:.6e}, {item.from_max:.6e}]")
+            else:
+                global _LAST_RANGE_ERROR
+                if _LAST_RANGE_ERROR:
+                    print(f"Could not compute auto range: {_LAST_RANGE_ERROR}")
+    except Exception as e:
+        print(f"Error computing auto range: {e}")
     try:
         mapr.clamp = True
     except Exception:
         pass
-    mapr.inputs[1].default_value = settings.from_min
-    mapr.inputs[2].default_value = settings.from_max
+    mapr.inputs[1].default_value = item.from_min
+    mapr.inputs[2].default_value = item.from_max
     mapr.inputs[3].default_value = 0.0
     mapr.inputs[4].default_value = 1.0
     
@@ -508,18 +521,20 @@ def ensure_volume_material_for_object(context, obj, settings):
     density_ctrl = nt.nodes.new('ShaderNodeGroup')
     density_ctrl.node_tree = get_volume_density_node_group()
     density_ctrl.location = (-100, -50)
-    density_ctrl.inputs['Enable Lower Clip'].default_value = settings.clip_min
-    density_ctrl.inputs['Enable Upper Clip'].default_value = settings.clip_max
-    density_ctrl.inputs['Base Density'].default_value = settings.alpha_baseline
-    density_ctrl.inputs['Scale Factor'].default_value = settings.alpha_multiplier
+    density_ctrl.inputs['Enable Lower Clip'].default_value = item.clip_min
+    density_ctrl.inputs['Enable Upper Clip'].default_value = item.clip_max
+    density_ctrl.inputs['Base Density'].default_value = item.alpha_baseline
+    density_ctrl.inputs['Scale Factor'].default_value = item.alpha_multiplier
+    density_ctrl.inputs['Opacity Unit Distance'].default_value = item.opacity_unit_distance
+    density_ctrl.inputs['Step Size'].default_value = item.step_size
     
     pv = nt.nodes.new('ShaderNodeVolumePrincipled'); pv.location = (200, 0)
-    pv.inputs[4].default_value = settings.anisotropy
-    pv.inputs[6].default_value = settings.emission_strength
+    pv.inputs[4].default_value = item.anisotropy
+    pv.inputs[6].default_value = item.emission_strength
     cr = nt.nodes.new('ShaderNodeValToRGB'); cr.location = (-150, 200)
     try:
         from ..utils.colormaps import apply_colormap_to_ramp
-        apply_colormap_to_ramp(settings.colormap, cr)
+        apply_colormap_to_ramp(item.colormap, cr)
     except Exception:
         pass
     tex = nt.nodes.new('ShaderNodeTexCoord'); tex.location = (-200, -250)
@@ -537,14 +552,14 @@ def ensure_volume_material_for_object(context, obj, settings):
     if vout is not None:
         nt.links.new(vout, sep_xyz.inputs[0])
         nt.links.new(vout, vec_len.inputs[0])
-        mode = getattr(settings, 'component_mode', 'MAG')
+        mode = getattr(item, 'component_mode', 'MAG')
         if mode == 'X':
             src_for_map = sep_xyz.outputs[0]
         elif mode == 'Y':
             src_for_map = sep_xyz.outputs[1]
         elif mode == 'Z':
             src_for_map = sep_xyz.outputs[2]
-        else:  # 'MAG'
+        else:
             try:
                 src_for_map = vec_len.outputs['Value']
             except Exception:
@@ -569,52 +584,86 @@ def ensure_volume_material_for_object(context, obj, settings):
     cube = _ensure_slice_cube_object(obj)
     try:
         tex.object = cube
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error setting tex.object: {e}")
     try:
-        settings.slice_object = cube
-    except Exception:
-        pass
+        item.slice_object = cube
+    except Exception as e:
+        print(f"Error setting slice_object: {e}")
+    
+    if not tex.object:
+        print(f"WARNING: TEX_COORD node has no object assigned!")
+    else:
+        print(f"Slicer '{cube.name}' assigned to TEX_COORD for volume '{obj.name}'")
 
     if obj.data and hasattr(obj.data, 'materials'):
         if len(obj.data.materials) == 0:
             obj.data.materials.append(mat)
         else:
             obj.data.materials[0] = mat
+    
+    if obj.data and hasattr(obj.data, 'render'):
+        try:
+            obj.data.render.space = 'WORLD'
+            obj.data.render.step_size = item.step_size
+        except Exception as e:
+            print(f"Could not set volume step size: {e}")
 
     return mat
 
 
-class FILTERS_OT_volume_update_material(bpy.types.Operator):
-    bl_idname = "filters.volume_update_material"
-    bl_label = "Update Material"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        s = context.scene.filters_volume_settings
-        if not s.volume_object or s.volume_object.type != 'VOLUME':
-            self.report({'ERROR'}, "Select a Volume object")
-            return {'CANCELLED'}
-
+def update_volume_item_material(context, item):
+    """
+    Update the material for a specific volume item.
+    """
+    from ..properties import volume_item
+    
+    if not item.volume_object or item.volume_object.type != 'VOLUME':
+        return None
+    
+    if not item.grid_name or item.grid_name == 'NONE':
+        return None
+    
+    original_flag = volume_item._UPDATING_NODES
+    volume_item._UPDATING_NODES = True
+    
+    try:
         try:
-            if getattr(s, 'auto_range', False) and getattr(s, 'grid_name', ''):
-                fp = _resolve_vdb_filepath_for_frame(context, s)
-                rng = _compute_vdb_grid_min_max(fp, s.grid_name, getattr(s, 'component_mode', 'MAG'))
+            if getattr(item, 'auto_range', False) and getattr(item, 'grid_name', ''):
+                fp = _resolve_vdb_filepath_for_frame(context, item)
+                if not fp and item.volume_object and item.volume_object.data and hasattr(item.volume_object.data, 'filepath'):
+                    fp = bpy.path.abspath(item.volume_object.data.filepath)
+                rng = _compute_vdb_grid_min_max(fp, item.grid_name, getattr(item, 'component_mode', 'MAG'))
                 if rng:
-                    s.from_min, s.from_max = rng
-        except Exception:
-            pass
-        mat = ensure_volume_material_for_object(context, s.volume_object, s)
+                    item.from_min, item.from_max = rng
+                    print(f"Auto-computed range for '{item.grid_name}': [{item.from_min:.6e}, {item.from_max:.6e}]")
+                else:
+                    global _LAST_RANGE_ERROR
+                    if _LAST_RANGE_ERROR:
+                        print(f"Could not compute auto range: {_LAST_RANGE_ERROR}")
+        except Exception as e:
+            print(f"Error computing auto range: {e}")
+        
+        mat_name = f"SciBlend_Volume_{item.volume_object.name}"
+        mat = bpy.data.materials.get(mat_name)
+        
+        if not mat or not mat.use_nodes:
+            mat = ensure_volume_material_for_object(context, item.volume_object, item)
+        
         nt = mat.node_tree
+        
         attr = next((n for n in nt.nodes if n.type == 'ATTRIBUTE'), None)
         if attr:
-            attr.attribute_name = s.grid_name or "density"
+            attr.attribute_name = item.grid_name
+        
         mapr = next((n for n in nt.nodes if n.type == 'MAP_RANGE'), None)
         if mapr:
-            mapr.inputs[1].default_value = s.from_min
-            mapr.inputs[2].default_value = s.from_max
+            mapr.inputs[1].default_value = item.from_min
+            mapr.inputs[2].default_value = item.from_max
+        
         sep_xyz = next((n for n in nt.nodes if n.type == 'SEPARATE_XYZ'), None)
         vec_len = next((n for n in nt.nodes if n.type == 'VECT_MATH' and getattr(n, 'operation', '') == 'LENGTH'), None)
+        
         if mapr and attr and sep_xyz and vec_len:
             try:
                 for link in list(mapr.inputs[0].links):
@@ -628,6 +677,7 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
                     nt.links.remove(link)
             except Exception:
                 pass
+            
             vout = None
             try:
                 vout = attr.outputs.get('Vector') if hasattr(attr.outputs, 'get') else None
@@ -635,18 +685,19 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
                     vout = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VECTOR'), None)
             except Exception:
                 vout = None
+            
             src_for_map = None
             if vout is not None:
                 nt.links.new(vout, sep_xyz.inputs[0])
                 nt.links.new(vout, vec_len.inputs[0])
-                mode = getattr(s, 'component_mode', 'MAG')
+                mode = getattr(item, 'component_mode', 'MAG')
                 if mode == 'X':
                     src_for_map = sep_xyz.outputs[0]
                 elif mode == 'Y':
                     src_for_map = sep_xyz.outputs[1]
                 elif mode == 'Z':
                     src_for_map = sep_xyz.outputs[2]
-                else:  # 'MAG'
+                else:
                     try:
                         src_for_map = vec_len.outputs['Value']
                     except Exception:
@@ -656,89 +707,159 @@ class FILTERS_OT_volume_update_material(bpy.types.Operator):
                     src_for_map = next((o for o in attr.outputs if getattr(o, 'type', '') == 'VALUE'), None)
                 except Exception:
                     src_for_map = None
+            
             if src_for_map is not None:
                 nt.links.new(src_for_map, mapr.inputs[0])
-
+        
         density_ctrl = next((n for n in nt.nodes if n.type == 'GROUP' and n.node_tree and n.node_tree.name == 'SciBlend_Volume_Density'), None)
         if density_ctrl:
             try:
-                density_ctrl.inputs['Enable Lower Clip'].default_value = s.clip_min
-                density_ctrl.inputs['Enable Upper Clip'].default_value = s.clip_max
-                density_ctrl.inputs['Base Density'].default_value = s.alpha_baseline
-                density_ctrl.inputs['Scale Factor'].default_value = s.alpha_multiplier
-            except Exception:
-                pass
+                density_ctrl.inputs['Enable Lower Clip'].default_value = item.clip_min
+                density_ctrl.inputs['Enable Upper Clip'].default_value = item.clip_max
+                density_ctrl.inputs['Base Density'].default_value = item.alpha_baseline
+                density_ctrl.inputs['Scale Factor'].default_value = item.alpha_multiplier
+                
+                if 'Opacity Unit Distance' in density_ctrl.inputs:
+                    density_ctrl.inputs['Opacity Unit Distance'].default_value = item.opacity_unit_distance
+                if 'Step Size' in density_ctrl.inputs:
+                    density_ctrl.inputs['Step Size'].default_value = item.step_size
+            except Exception as e:
+                print(f"Error updating density controller: {e}")
+        else:
+            print("WARNING: Density controller node not found. Material may need to be regenerated.")
+        
         pv = next((n for n in nt.nodes if n.type == 'VOLUME_PRINCIPLED'), None)
         if pv:
-            pv.inputs[4].default_value = s.anisotropy
-            pv.inputs[6].default_value = s.emission_strength
+            pv.inputs[4].default_value = item.anisotropy
+            pv.inputs[6].default_value = item.emission_strength
+        
         cr = next((n for n in nt.nodes if n.type == 'VALTORGB'), None)
         if cr:
             try:
                 from ..utils.colormaps import apply_colormap_to_ramp
-                apply_colormap_to_ramp(s.colormap, cr)
+                apply_colormap_to_ramp(item.colormap, cr)
             except Exception:
                 pass
-        cube = _ensure_slice_cube_object(s.volume_object)
+        
+        cube = _ensure_slice_cube_object(item.volume_object)
         tex = next((n for n in nt.nodes if n.type == 'TEX_COORD'), None)
         if tex:
             try:
                 tex.object = cube
-            except Exception:
-                pass
+                print(f"Updated: Slicer '{cube.name}' assigned to TEX_COORD for volume '{item.volume_object.name}'")
+                if not tex.object:
+                    print(f"WARNING: Assignment failed, TEX_COORD still has no object!")
+            except Exception as e:
+                print(f"Error in update setting tex.object: {e}")
+        
         try:
-            s.slice_object = cube
+            item.slice_object = cube
         except Exception:
             pass
+        
         slice_group = next((n for n in nt.nodes if n.type == 'GROUP' and n.node_tree and n.node_tree.name == 'Slice Cube'), None)
         if slice_group:
             try:
                 idx = 2
-                slice_group.inputs[idx].default_value = bool(s.slice_invert)
-            except Exception:
-                pass
+                slice_group.inputs[idx].default_value = bool(item.slice_invert)
+                
+                if tex:
+                    tex_output = tex.outputs[3]
+                    slice_input = slice_group.inputs[1]
+                    is_connected = any(link.to_socket == slice_input for link in nt.links)
+                    print(f"TEX_COORD->Slice Group connection exists: {is_connected}")
+                    if not is_connected:
+                        print(f"WARNING: TEX_COORD not connected to Slice Group! Reconnecting...")
+                        nt.links.new(tex_output, slice_input)
+            except Exception as e:
+                print(f"Error updating slice group: {e}")
+        
+        if item.volume_object and item.volume_object.data and hasattr(item.volume_object.data, 'materials'):
+            if len(item.volume_object.data.materials) == 0:
+                item.volume_object.data.materials.append(mat)
+            elif item.volume_object.data.materials[0] != mat:
+                item.volume_object.data.materials[0] = mat
+        
+        if item.volume_object and item.volume_object.data and hasattr(item.volume_object.data, 'render'):
+            try:
+                item.volume_object.data.render.space = 'WORLD'
+                item.volume_object.data.render.step_size = item.step_size
+                print(f"Updated volume step size to {item.step_size}")
+            except Exception as e:
+                print(f"Could not set volume step size: {e}")
+        
+        return mat
+    finally:
+        volume_item._UPDATING_NODES = original_flag
+
+
+class FILTERS_OT_volume_update_material(bpy.types.Operator):
+    """
+    Update the material for the active volume item.
+    """
+    bl_idname = "filters.volume_update_material"
+    bl_label = "Update Material"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        from ..properties.volume_settings import get_active_volume_item
+        
+        item = get_active_volume_item(context)
+        if not item:
+            self.report({'ERROR'}, "No active volume item")
+            return {'CANCELLED'}
+        
+        if not item.volume_object or item.volume_object.type != 'VOLUME':
+            self.report({'ERROR'}, "Select a Volume object")
+            return {'CANCELLED'}
+        
+        update_volume_item_material(context, item)
+        
         return {'FINISHED'}
 
 
 class FILTERS_OT_volume_compute_range(bpy.types.Operator):
+    """
+    Compute the value range for the active volume item.
+    """
     bl_idname = "filters.volume_compute_range"
     bl_label = "Compute Range"
     bl_options = {'REGISTER'}
 
     def execute(self, context):
-        s = context.scene.filters_volume_settings
-        if not s.volume_object or s.volume_object.type != 'VOLUME' or not s.grid_name:
+        from ..properties.volume_settings import get_active_volume_item
+        
+        item = get_active_volume_item(context)
+        if not item:
+            self.report({'ERROR'}, "No active volume item")
+            return {'CANCELLED'}
+        
+        if not item.volume_object or item.volume_object.type != 'VOLUME' or not item.grid_name:
             self.report({'ERROR'}, "Select volume and grid")
             return {'CANCELLED'}
-        min_v, max_v = None, None
+        
         try:
-            import openvdb as vdb
-            dirpath = s.last_import_dir
-            files = [f.name for f in s.last_import_files] if len(s.last_import_files) else []
-            filepath = None
-            for n in files or []:
-                if n.lower().endswith('.vdb'):
-                    filepath = bpy.path.abspath(bpy.path.relpath(bpy.path.join(dirpath, n))) if hasattr(bpy.path, 'join') else os.path.join(dirpath, n)
-                    break
-            if not filepath and dirpath:
-                filepath = getattr(s.volume_object.data, 'filepath', '')
-            if filepath and os.path.exists(filepath):
-                grid = vdb.read(filepath)[s.grid_name]
-                min_v = float('inf'); max_v = float('-inf')
-                for v in grid.values():
-                    if v < min_v: min_v = v
-                    if v > max_v: max_v = v
-            fp = _resolve_vdb_filepath_for_frame(context, s)
-            rng = _compute_vdb_grid_min_max(fp, s.grid_name, getattr(s, 'component_mode', 'MAG'))
-        except Exception:
-            pass
-        if min_v is None or max_v is None:
-            self.report({'WARNING'}, "Could not compute range (pyopenvdb not available); set manually.")
+            fp = _resolve_vdb_filepath_for_frame(context, item)
+            if not fp and item.volume_object and item.volume_object.data and hasattr(item.volume_object.data, 'filepath'):
+                fp = bpy.path.abspath(item.volume_object.data.filepath)
+            
+            rng = _compute_vdb_grid_min_max(fp, item.grid_name, getattr(item, 'component_mode', 'MAG'))
+            
+            if not rng:
+                global _LAST_RANGE_ERROR
+                error_msg = _LAST_RANGE_ERROR or "Could not compute range"
+                self.report({'WARNING'}, error_msg)
+                return {'CANCELLED'}
+            
+            item.from_min, item.from_max = rng
+            self.report({'INFO'}, f"Range computed: [{item.from_min:.6e}, {item.from_max:.6e}]")
+        except Exception as e:
+            self.report({'ERROR'}, f"Error computing range: {e}")
             return {'CANCELLED'}
-        s.from_min = float(min_v)
-        s.from_max = float(max_v)
-        if s.auto_range:
+        
+        if item.auto_range:
             bpy.ops.filters.volume_update_material('INVOKE_DEFAULT')
+        
         return {'FINISHED'}
 
 

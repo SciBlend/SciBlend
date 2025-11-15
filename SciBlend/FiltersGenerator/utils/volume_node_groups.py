@@ -80,18 +80,27 @@ def _build_density_controller_graph():
     group_name = "SciBlend_Volume_Density"
     existing = bpy.data.node_groups.get(group_name)
     if existing:
-        return existing
+        required_inputs = ['Opacity Unit Distance', 'Step Size']
+        has_new_inputs = all(inp in existing.interface.items_tree for inp in required_inputs)
+        if has_new_inputs:
+            return existing
+        else:
+            bpy.data.node_groups.remove(existing)
     
     ng = bpy.data.node_groups.new(type='ShaderNodeTree', name=group_name)
     iface = ng.interface
     
     _create_socket(iface, "Normalized Value", "INPUT", 'NodeSocketFloat')
     _create_socket(iface, "Enable Lower Clip", "INPUT", 'NodeSocketBool', {'default_value': True})
-    _create_socket(iface, "Enable Upper Clip", "INPUT", 'NodeSocketBool', {'default_value': False})
+    _create_socket(iface, "Enable Upper Clip", "INPUT", 'NodeSocketBool', {'default_value': True})
     _create_socket(iface, "Base Density", "INPUT", 'NodeSocketFloat', 
-                   {'default_value': 0.2, 'min_value': 0.0, 'max_value': 100.0})
-    _create_socket(iface, "Scale Factor", "INPUT", 'NodeSocketFloat',
                    {'default_value': 0.0, 'min_value': 0.0, 'max_value': 100.0})
+    _create_socket(iface, "Scale Factor", "INPUT", 'NodeSocketFloat',
+                   {'default_value': 0.15, 'min_value': 0.0, 'max_value': 100.0})
+    _create_socket(iface, "Opacity Unit Distance", "INPUT", 'NodeSocketFloat',
+                   {'default_value': 1.0, 'min_value': 0.0, 'max_value': 100.0})
+    _create_socket(iface, "Step Size", "INPUT", 'NodeSocketFloat',
+                   {'default_value': 0.05, 'min_value': 0.001, 'max_value': 1000.0})
     
     _create_socket(iface, "Density", "OUTPUT", 'NodeSocketFloat')
     
@@ -100,19 +109,31 @@ def _build_density_controller_graph():
     
     input_node = nodes.new("NodeGroupInput")
     output_node = nodes.new("NodeGroupOutput")
-    input_node.location = (-600, 0)
-    output_node.location = (800, 0)
+    input_node.location = (-800, 0)
+    output_node.location = (1000, 0)
     
     density_compute = nodes.new("ShaderNodeMath")
     density_compute.operation = "MULTIPLY_ADD"
-    density_compute.location = (-200, 100)
+    density_compute.location = (-400, 100)
     links.new(input_node.outputs["Normalized Value"], density_compute.inputs[0])
     links.new(input_node.outputs["Scale Factor"], density_compute.inputs[1])
     links.new(input_node.outputs["Base Density"], density_compute.inputs[2])
     
+    opacity_correction = nodes.new("ShaderNodeMath")
+    opacity_correction.operation = "DIVIDE"
+    opacity_correction.location = (0, -150)
+    links.new(input_node.outputs["Step Size"], opacity_correction.inputs[0])
+    links.new(input_node.outputs["Opacity Unit Distance"], opacity_correction.inputs[1])
+    
+    apply_opacity_correction = nodes.new("ShaderNodeMath")
+    apply_opacity_correction.operation = "MULTIPLY"
+    apply_opacity_correction.location = (200, 0)
+    links.new(density_compute.outputs[0], apply_opacity_correction.inputs[0])
+    links.new(opacity_correction.outputs[0], apply_opacity_correction.inputs[1])
+    
     mask_group = nodes.new('ShaderNodeGroup')
     mask_group.node_tree = _build_threshold_masking_graph()
-    mask_group.location = (-200, -100)
+    mask_group.location = (-200, -300)
     mask_group.hide = True
     links.new(input_node.outputs["Normalized Value"], mask_group.inputs["Normalized"])
     links.new(input_node.outputs["Enable Lower Clip"], mask_group.inputs["Mask Lower Bound"])
@@ -120,8 +141,8 @@ def _build_density_controller_graph():
     
     final_multiply = nodes.new("ShaderNodeMath")
     final_multiply.operation = "MULTIPLY"
-    final_multiply.location = (400, 0)
-    links.new(density_compute.outputs[0], final_multiply.inputs[0])
+    final_multiply.location = (600, 0)
+    links.new(apply_opacity_correction.outputs[0], final_multiply.inputs[0])
     links.new(mask_group.outputs["Result"], final_multiply.inputs[1])
     
     links.new(final_multiply.outputs[0], output_node.inputs["Density"])
