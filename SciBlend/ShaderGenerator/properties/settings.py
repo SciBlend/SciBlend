@@ -4,6 +4,7 @@ from bpy.props import FloatProperty, EnumProperty, IntProperty, CollectionProper
 from .collection_shader_item import CollectionShaderItem
 
 _loading_material_settings = False
+_updating_transparency = False
 
 
 def _get_active_collection_material(context):
@@ -198,6 +199,44 @@ def _update_normalization(self, context):
         pass
 
 
+def _update_transparency(self, context):
+    """Update transparency settings in the material."""
+    global _loading_material_settings, _updating_transparency
+    
+    print(f"[SETTINGS] _update_transparency called. loading={_loading_material_settings}, updating={_updating_transparency}")
+    
+    if _loading_material_settings or _updating_transparency:
+        print(f"[SETTINGS] Skipping due to flags")
+        return
+    
+    _updating_transparency = True
+    try:
+        mat = _get_active_collection_material(context)
+        print(f"[SETTINGS] Got material: {mat}")
+        
+        if not mat:
+            print(f"[SETTINGS] No material found!")
+            return
+        
+        from ..utils.material_updater import update_material_transparency
+        print(f"[SETTINGS] Calling update_material_transparency...")
+        result = update_material_transparency(
+            mat, 
+            self.enable_transparency,
+            self.transparency_mode,
+            self.transparency_min,
+            self.transparency_max,
+            self.invert_transparency
+        )
+        print(f"[SETTINGS] Result: {result}")
+    except Exception as e:
+        print(f"[SETTINGS] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        _updating_transparency = False
+
+
 def _on_collection_index_changed(self, context):
     """Called when the active collection changes. Selects first object and loads shader settings."""
     global _loading_material_settings
@@ -265,6 +304,14 @@ def _on_collection_index_changed(self, context):
         try:
             settings.from_min = mat_settings.get('from_min', 0.0)
             settings.from_max = mat_settings.get('from_max', 1.0)
+        except Exception:
+            pass
+        try:
+            settings.enable_transparency = mat_settings.get('enable_transparency', False)
+            settings.transparency_mode = mat_settings.get('transparency_mode', 'RANGE')
+            settings.transparency_min = mat_settings.get('transparency_min', 0.0)
+            settings.transparency_max = mat_settings.get('transparency_max', 0.1)
+            settings.invert_transparency = mat_settings.get('invert_transparency', False)
         except Exception:
             pass
         finally:
@@ -342,6 +389,46 @@ class ShaderGeneratorSettings(PropertyGroup):
         ],
         default='AUTO',
         update=_update_normalization,
+    )
+    
+    enable_transparency: BoolProperty(
+        name="Enable Transparency",
+        description="Enable transparency based on attribute values",
+        default=False,
+        update=_update_transparency,
+    )
+    
+    transparency_mode: EnumProperty(
+        name="Transparency Mode",
+        description="Choose how to determine transparency",
+        items=[
+            ('RANGE', "Value Range", "Make values within a range transparent"),
+            ('NAN', "NaN/Invalid", "Make NaN and invalid values transparent"),
+            ('BOTH', "Range + NaN", "Combine both methods"),
+        ],
+        default='RANGE',
+        update=_update_transparency,
+    )
+    
+    transparency_min: FloatProperty(
+        name="Transparency Min",
+        description="Minimum value for transparency range",
+        default=0.0,
+        update=_update_transparency,
+    )
+    
+    transparency_max: FloatProperty(
+        name="Transparency Max",
+        description="Maximum value for transparency range",
+        default=0.1,
+        update=_update_transparency,
+    )
+    
+    invert_transparency: BoolProperty(
+        name="Invert Transparency",
+        description="Invert the transparency mask",
+        default=False,
+        update=_update_transparency,
     )
 
 

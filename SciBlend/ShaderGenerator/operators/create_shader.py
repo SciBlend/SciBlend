@@ -255,6 +255,7 @@ class MATERIAL_OT_create_shader(Operator):
                 update_material_gamma,
                 update_material_attribute,
                 update_material_normalization,
+                update_material_transparency,
             )
             
             update_material_colormap(mat, settings.colormap, custom_colormap)
@@ -262,6 +263,14 @@ class MATERIAL_OT_create_shader(Operator):
             update_material_gamma(mat, settings.gamma)
             update_material_attribute(mat, selected_attr)
             update_material_normalization(mat, settings.normalization, color_range)
+            update_material_transparency(
+                mat,
+                settings.enable_transparency,
+                settings.transparency_mode,
+                settings.transparency_min,
+                settings.transparency_max,
+                settings.invert_transparency
+            )
             
             action = "Updated"
         else:
@@ -276,6 +285,16 @@ class MATERIAL_OT_create_shader(Operator):
             )
             
             mat.name = f"Shader_{item.collection_name}"
+            
+            from ..utils.material_updater import update_material_transparency
+            update_material_transparency(
+                mat,
+                settings.enable_transparency,
+                settings.transparency_mode,
+                settings.transparency_min,
+                settings.transparency_max,
+                settings.invert_transparency
+            )
             
             item.material_name = mat.name
             item.is_shader_generator = True

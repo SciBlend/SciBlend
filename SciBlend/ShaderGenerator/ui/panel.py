@@ -108,24 +108,44 @@ class MATERIAL_PT_shader_generator(Panel):
                 if mat and mat.get('sciblend_colormap') is not None:
                     has_material = True
             
-            layout.label(text=f"Shader Settings: {item.collection_name}", icon='NODE_MATERIAL')
-            
-            box = layout.box()
-            col = box.column(align=True)
-            
-            col.prop(settings, "colormap", text="Colormap")
-            col.prop(settings, "interpolation", text="Interpolation")
-            col.prop(settings, "gamma", text="Gamma")
-            col.prop(settings, "attribute_name", text="Attribute")
-            col.prop(settings, "normalization", text="Normalization")
-            
-            layout.separator()
-            
-            layout.label(text="Map Range", icon='RNDCURVE')
-            box = layout.box()
-            row = box.row(align=True)
-            row.prop(settings, "from_min", text="From Min")
-            row.prop(settings, "from_max", text="From Max")
+                layout.label(text=f"Shader Settings: {item.collection_name}", icon='NODE_MATERIAL')
+                
+                box = layout.box()
+                col = box.column(align=True)
+                
+                col.prop(settings, "colormap", text="Colormap")
+                col.prop(settings, "interpolation", text="Interpolation")
+                col.prop(settings, "gamma", text="Gamma")
+                col.prop(settings, "attribute_name", text="Attribute")
+                col.prop(settings, "normalization", text="Normalization")
+                
+                layout.separator()
+                
+                layout.label(text="Map Range", icon='RNDCURVE')
+                box = layout.box()
+                row = box.row(align=True)
+                row.prop(settings, "from_min", text="From Min")
+                row.prop(settings, "from_max", text="From Max")
+                
+                layout.separator()
+                
+                layout.label(text="Transparency", icon='SHADING_RENDERED')
+                box = layout.box()
+                col = box.column(align=True)
+                col.prop(settings, "enable_transparency", text="Enable Transparency")
+                
+                if settings.enable_transparency:
+                    col.separator()
+                    col.prop(settings, "transparency_mode", text="Mode")
+                    
+                    if settings.transparency_mode in ['RANGE', 'BOTH']:
+                        col.separator()
+                        row = col.row(align=True)
+                        row.prop(settings, "transparency_min", text="Min")
+                        row.prop(settings, "transparency_max", text="Max")
+                    
+                    col.separator()
+                    col.prop(settings, "invert_transparency", text="Invert Mask")
             
             layout.separator()
             

@@ -17,7 +17,7 @@ def load_settings_from_material(material):
     Returns
     -------
     dict
-        Dictionary with keys: colormap, attribute, normalization, interpolation, gamma, from_min, from_max.
+        Dictionary with shader settings including transparency options.
     """
     if not material:
         return None
@@ -27,6 +27,11 @@ def load_settings_from_material(material):
     settings['colormap'] = material.get('sciblend_colormap', 'viridis')
     settings['attribute'] = material.get('sciblend_attribute', 'Col')
     settings['normalization'] = material.get('sciblend_normalization', 'AUTO')
+    settings['enable_transparency'] = material.get('sciblend_enable_transparency', False)
+    settings['transparency_mode'] = material.get('sciblend_transparency_mode', 'RANGE')
+    settings['transparency_min'] = material.get('sciblend_transparency_min', 0.0)
+    settings['transparency_max'] = material.get('sciblend_transparency_max', 0.1)
+    settings['invert_transparency'] = material.get('sciblend_invert_transparency', False)
     
     if material.use_nodes and material.node_tree:
         nodes = material.node_tree.nodes
@@ -345,4 +350,224 @@ def get_material_from_collection(collection):
             if len(obj.data.materials) > 0 and obj.data.materials[0]:
                 return obj.data.materials[0]
     return None
+
+
+def update_material_transparency(material, enable, mode, min_val, max_val, invert):
+    """Update or create transparency nodes in the material.
+    
+    Parameters
+    ----------
+    material : bpy.types.Material
+        The material to update.
+    enable : bool
+        Whether transparency is enabled.
+    mode : str
+        Transparency mode: 'RANGE', 'NAN', or 'BOTH'.
+    min_val : float
+        Minimum value for range mode.
+    max_val : float
+        Maximum value for range mode.
+    invert : bool
+        Whether to invert the transparency mask.
+        
+    Returns
+    -------
+    bool
+        True if successful, False otherwise.
+    """
+    print(f"[TRANSPARENCY] Called with enable={enable}, mode={mode}, min={min_val}, max={max_val}, invert={invert}")
+    
+    if not material or not material.use_nodes or not material.node_tree:
+        print(f"[TRANSPARENCY] Early return: material checks failed")
+        return False
+    
+    print(f"[TRANSPARENCY] Material: {material.name}")
+    
+    try:
+        material['sciblend_enable_transparency'] = enable
+        material['sciblend_transparency_mode'] = mode
+        material['sciblend_transparency_min'] = min_val
+        material['sciblend_transparency_max'] = max_val
+        material['sciblend_invert_transparency'] = invert
+        
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
+        
+        attrib_node = find_attribute_node(material)
+        print(f"[TRANSPARENCY] Attribute node found: {attrib_node}")
+        
+        bsdf_node = None
+        output_node = None
+        
+        for node in nodes:
+            if node.type == 'BSDF_PRINCIPLED':
+                bsdf_node = node
+            elif node.type == 'OUTPUT_MATERIAL':
+                output_node = node
+        
+        print(f"[TRANSPARENCY] BSDF node: {bsdf_node}, Output node: {output_node}")
+        
+        if not attrib_node or not bsdf_node or not output_node:
+            print(f"[TRANSPARENCY] Missing required nodes!")
+            return False
+        
+        transparency_nodes = [n for n in nodes if hasattr(n, 'label') and 'SCIBLEND_TRANSPARENCY' in str(n.label)]
+        print(f"[TRANSPARENCY] Removing {len(transparency_nodes)} old transparency nodes")
+        for node in transparency_nodes:
+            nodes.remove(node)
+        
+        if not enable:
+            print(f"[TRANSPARENCY] Transparency disabled, setting material to OPAQUE")
+            material.blend_method = 'OPAQUE'
+            material.node_tree.update_tag()
+            return True
+        
+        print(f"[TRANSPARENCY] Enabling transparency with mode: {mode}")
+        material.blend_method = 'BLEND'
+        if hasattr(material, 'shadow_method'):
+            material.shadow_method = 'CLIP'
+        
+        base_x = attrib_node.location.x
+        base_y = attrib_node.location.y - 300
+        print(f"[TRANSPARENCY] Base position: ({base_x}, {base_y})")
+        
+        if mode == 'NAN':
+            print(f"[TRANSPARENCY] Creating NAN detection nodes")
+            # NaN detection: NaN != NaN, so we compare value with itself
+            # If EQUAL returns 1, it's NOT NaN. If it returns 0, it IS NaN.
+            is_nan_node = nodes.new(type='ShaderNodeMath')
+            is_nan_node.operation = 'COMPARE'
+            is_nan_node.location = (base_x + 200, base_y)
+            is_nan_node.label = 'SCIBLEND_TRANSPARENCY_NAN_CHECK'
+            is_nan_node.inputs[2].default_value = 0.0001  # epsilon for comparison
+            
+            # Connect the same value to both inputs to compare with itself
+            links.new(attrib_node.outputs[2], is_nan_node.inputs[0])
+            links.new(attrib_node.outputs[2], is_nan_node.inputs[1])
+            
+            # Now invert: if EQUAL=1 (not NaN), we want alpha=1 (opaque)
+            #             if EQUAL=0 (is NaN), we want alpha=0 (transparent)
+            # So the EQUAL result is already what we want for alpha!
+            alpha_socket = is_nan_node.outputs[0]
+            print(f"[TRANSPARENCY] NAN node created: {is_nan_node}")
+            
+        elif mode == 'RANGE':
+            print(f"[TRANSPARENCY] Creating RANGE detection nodes")
+            in_range_low = nodes.new(type='ShaderNodeMath')
+            in_range_low.operation = 'GREATER_THAN'
+            in_range_low.location = (base_x + 200, base_y)
+            in_range_low.label = 'SCIBLEND_TRANSPARENCY_LOW'
+            in_range_low.inputs[1].default_value = min_val
+            
+            in_range_high = nodes.new(type='ShaderNodeMath')
+            in_range_high.operation = 'LESS_THAN'
+            in_range_high.location = (base_x + 200, base_y - 100)
+            in_range_high.label = 'SCIBLEND_TRANSPARENCY_HIGH'
+            in_range_high.inputs[1].default_value = max_val
+            
+            combine_range = nodes.new(type='ShaderNodeMath')
+            combine_range.operation = 'MULTIPLY'
+            combine_range.location = (base_x + 400, base_y - 50)
+            combine_range.label = 'SCIBLEND_TRANSPARENCY_COMBINE'
+            
+            # Invert: if in range (combine=1), we want transparent (alpha=0)
+            invert_range = nodes.new(type='ShaderNodeMath')
+            invert_range.operation = 'SUBTRACT'
+            invert_range.location = (base_x + 600, base_y - 50)
+            invert_range.label = 'SCIBLEND_TRANSPARENCY_INVERT_RANGE'
+            invert_range.inputs[0].default_value = 1.0
+            
+            links.new(attrib_node.outputs[2], in_range_low.inputs[0])
+            links.new(attrib_node.outputs[2], in_range_high.inputs[0])
+            links.new(in_range_low.outputs[0], combine_range.inputs[0])
+            links.new(in_range_high.outputs[0], combine_range.inputs[1])
+            links.new(combine_range.outputs[0], invert_range.inputs[1])
+            
+            alpha_socket = invert_range.outputs[0]
+            print(f"[TRANSPARENCY] RANGE nodes created: low={in_range_low}, high={in_range_high}, combine={combine_range}, invert={invert_range}")
+            
+        else:
+            print(f"[TRANSPARENCY] Creating BOTH (RANGE + NAN) detection nodes")
+            # NaN detection: compare value with itself
+            is_nan_node = nodes.new(type='ShaderNodeMath')
+            is_nan_node.operation = 'COMPARE'
+            is_nan_node.location = (base_x + 200, base_y)
+            is_nan_node.label = 'SCIBLEND_TRANSPARENCY_NAN_CHECK'
+            is_nan_node.inputs[2].default_value = 0.0001  # epsilon for comparison
+            
+            in_range_low = nodes.new(type='ShaderNodeMath')
+            in_range_low.operation = 'GREATER_THAN'
+            in_range_low.location = (base_x + 200, base_y - 150)
+            in_range_low.label = 'SCIBLEND_TRANSPARENCY_LOW'
+            in_range_low.inputs[1].default_value = min_val
+            
+            in_range_high = nodes.new(type='ShaderNodeMath')
+            in_range_high.operation = 'LESS_THAN'
+            in_range_high.location = (base_x + 200, base_y - 250)
+            in_range_high.label = 'SCIBLEND_TRANSPARENCY_HIGH'
+            in_range_high.inputs[1].default_value = max_val
+            
+            combine_range = nodes.new(type='ShaderNodeMath')
+            combine_range.operation = 'MULTIPLY'
+            combine_range.location = (base_x + 400, base_y - 200)
+            combine_range.label = 'SCIBLEND_TRANSPARENCY_COMBINE'
+            
+            combine_all = nodes.new(type='ShaderNodeMath')
+            combine_all.operation = 'MULTIPLY'
+            combine_all.location = (base_x + 600, base_y - 100)
+            combine_all.label = 'SCIBLEND_TRANSPARENCY_FINAL'
+            
+            # Connect NaN check (value compared with itself)
+            links.new(attrib_node.outputs[2], is_nan_node.inputs[0])
+            links.new(attrib_node.outputs[2], is_nan_node.inputs[1])
+            
+            # Connect range check
+            links.new(attrib_node.outputs[2], in_range_low.inputs[0])
+            links.new(attrib_node.outputs[2], in_range_high.inputs[0])
+            links.new(in_range_low.outputs[0], combine_range.inputs[0])
+            links.new(in_range_high.outputs[0], combine_range.inputs[1])
+            
+
+            # Invert range result
+            invert_range = nodes.new(type='ShaderNodeMath')
+            invert_range.operation = 'SUBTRACT'
+            invert_range.location = (base_x + 600, base_y - 200)
+            invert_range.label = 'SCIBLEND_TRANSPARENCY_INVERT_RANGE'
+            invert_range.inputs[0].default_value = 1.0
+            links.new(combine_range.outputs[0], invert_range.inputs[1])
+            
+            # Multiply: opaque only if NOT NaN AND NOT in range
+            links.new(is_nan_node.outputs[0], combine_all.inputs[0])
+            links.new(invert_range.outputs[0], combine_all.inputs[1])
+            
+            alpha_socket = combine_all.outputs[0]
+            print(f"[TRANSPARENCY] BOTH nodes created: nan={is_nan_node}, low={in_range_low}, high={in_range_high}, combine_range={combine_range}, invert_range={invert_range}, combine_all={combine_all}")
+        
+        if invert:
+            print(f"[TRANSPARENCY] Creating invert node")
+            invert_node = nodes.new(type='ShaderNodeMath')
+            invert_node.operation = 'SUBTRACT'
+            invert_node.location = (alpha_socket.node.location.x + 200, alpha_socket.node.location.y)
+            invert_node.label = 'SCIBLEND_TRANSPARENCY_INVERT'
+            invert_node.inputs[0].default_value = 1.0
+            
+            links.new(alpha_socket, invert_node.inputs[1])
+            alpha_socket = invert_node.outputs[0]
+        
+        print(f"[TRANSPARENCY] Connecting alpha to BSDF")
+        links.new(alpha_socket, bsdf_node.inputs['Alpha'])
+        
+        print(f"[TRANSPARENCY] Updating material node tree")
+        material.node_tree.update_tag()
+        
+        print(f"[TRANSPARENCY] Success!")
+        logger.info("Updated transparency for material %s", material.name)
+        return True
+        
+    except Exception as e:
+        print(f"[TRANSPARENCY] Exception occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        logger.error("Failed to update transparency: %s", e)
+        return False
 
