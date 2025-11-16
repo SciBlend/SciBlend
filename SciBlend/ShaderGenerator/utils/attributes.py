@@ -110,6 +110,8 @@ def clear_attribute_cache(obj_name=None):
 
 def get_color_range(obj, attribute_name, normalization='AUTO'):
     """Compute the numeric range for a named attribute with optional global normalization.
+    
+    NaN and infinite values are automatically filtered out from the range calculation.
 
     Parameters
     ----------
@@ -123,8 +125,14 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
     Returns
     -------
     tuple[float, float]
-        Minimum and maximum values.
+        Minimum and maximum values (excluding NaN and inf).
     """
+    import math
+    
+    def is_valid_value(v):
+        """Check if a value is valid (not NaN and not infinite)."""
+        return not (math.isnan(v) or math.isinf(v))
+    
     if normalization == 'GLOBAL':
         all_values = []
         for o in bpy.data.objects:
@@ -132,10 +140,11 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
                 attribute = o.data.attributes[attribute_name]
                 try:
                     if attribute.data_type == 'FLOAT':
-                        values = [data.value for data in attribute.data]
+                        values = [data.value for data in attribute.data if is_valid_value(data.value)]
                         all_values.extend(values)
                     elif attribute.data_type == 'FLOAT_VECTOR':
                         values = [data.vector.length for data in attribute.data]
+                        values = [v for v in values if is_valid_value(v)]
                         all_values.extend(values)
                     elif attribute.data_type in {'INT', 'INT8', 'INT32'}:
                         values = [float(data.value) for data in attribute.data]
@@ -156,9 +165,10 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
     values = []
     try:
         if attribute.data_type == 'FLOAT':
-            values = [data.value for data in attribute.data]
+            values = [data.value for data in attribute.data if is_valid_value(data.value)]
         elif attribute.data_type == 'FLOAT_VECTOR':
             values = [data.vector.length for data in attribute.data]
+            values = [v for v in values if is_valid_value(v)]
         elif attribute.data_type in {'INT', 'INT8', 'INT32'}:
             values = [float(data.value) for data in attribute.data]
         elif attribute.data_type == 'BOOLEAN':

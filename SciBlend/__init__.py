@@ -120,28 +120,40 @@ shader_classes = ()
 try:
     from .ShaderGenerator import (
         ColorRampColor,
+        CollectionShaderItem,
+        ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
         COLORRAMP_OT_save_custom,
         COLORRAMP_OT_load_custom,
         COLORRAMP_OT_import_json,
         MATERIAL_OT_create_shader,
+        SHADER_OT_refresh_attributes,
+        SHADER_OT_refresh_collections,
+        SHADER_OT_remove_shader,
+        SHADER_OT_apply_changes,
+        SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
-    from .ShaderGenerator.properties.settings import ShaderGeneratorSettings
     MATERIAL_PT_shader_generator.bl_category = 'SciBlend'
     MATERIAL_PT_shader_generator.bl_options = {'DEFAULT_CLOSED'}
     SHADER_AVAILABLE = True
     shader_classes = (
         ColorRampColor,
+        CollectionShaderItem,
+        ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
         COLORRAMP_OT_save_custom,
         COLORRAMP_OT_load_custom,
         COLORRAMP_OT_import_json,
         MATERIAL_OT_create_shader,
+        SHADER_OT_refresh_attributes,
+        SHADER_OT_refresh_collections,
+        SHADER_OT_remove_shader,
+        SHADER_OT_apply_changes,
+        SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
-        ShaderGeneratorSettings,
     )
 except ImportError:
     class ShaderGeneratorPanelStub(bpy.types.Panel):
@@ -246,28 +258,40 @@ shader_classes = ()
 try:
     from .ShaderGenerator import (
         ColorRampColor,
+        CollectionShaderItem,
+        ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
         COLORRAMP_OT_save_custom,
         COLORRAMP_OT_load_custom,
         COLORRAMP_OT_import_json,
         MATERIAL_OT_create_shader,
+        SHADER_OT_refresh_attributes,
+        SHADER_OT_refresh_collections,
+        SHADER_OT_remove_shader,
+        SHADER_OT_apply_changes,
+        SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
-    from .ShaderGenerator.properties.settings import ShaderGeneratorSettings
     MATERIAL_PT_shader_generator.bl_category = 'SciBlend'
     MATERIAL_PT_shader_generator.bl_options = {'DEFAULT_CLOSED'}
     SHADER_AVAILABLE = True
     shader_classes = (
         ColorRampColor,
+        CollectionShaderItem,
+        ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
         COLORRAMP_OT_save_custom,
         COLORRAMP_OT_load_custom,
         COLORRAMP_OT_import_json,
         MATERIAL_OT_create_shader,
+        SHADER_OT_refresh_attributes,
+        SHADER_OT_refresh_collections,
+        SHADER_OT_remove_shader,
+        SHADER_OT_apply_changes,
+        SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
-        ShaderGeneratorSettings,
     )
 except ImportError:
     class ShaderGeneratorPanelStub(bpy.types.Panel):
@@ -792,12 +816,24 @@ def register():
     for cls in classes_pre:
         try:
             bpy.utils.register_class(cls)
+            if SHADER_AVAILABLE and cls.__name__ == 'ShaderGeneratorSettings':
+                cls.collection_shaders = bpy.props.CollectionProperty(
+                    type=CollectionShaderItem,
+                    name="Collection Shaders",
+                    description="Track collection-material associations",
+                )
         except ValueError:
             try:
                 bpy.utils.unregister_class(cls)
             except Exception:
                 pass
             bpy.utils.register_class(cls)
+            if SHADER_AVAILABLE and cls.__name__ == 'ShaderGeneratorSettings':
+                cls.collection_shaders = bpy.props.CollectionProperty(
+                    type=CollectionShaderItem,
+                    name="Collection Shaders",
+                    description="Track collection-material associations",
+                )
 
     if SCIBLENDNODES_AVAILABLE:
         try:
@@ -841,6 +877,18 @@ def register():
     if SHADER_AVAILABLE:
         bpy.types.Scene.custom_colorramp = bpy.props.CollectionProperty(type=ColorRampColor)
         bpy.types.Scene.shader_generator_settings = bpy.props.PointerProperty(type=ShaderGeneratorSettings)
+        
+        def _initialize_shader_collections():
+            """Initialize shader generator collections on a timer."""
+            try:
+                from .ShaderGenerator.operators.collection_operators import rebuild_collection_list
+                if bpy.context and hasattr(bpy.context, 'scene'):
+                    rebuild_collection_list(bpy.context)
+            except Exception:
+                pass
+            return None
+        
+        bpy.app.timers.register(_initialize_shader_collections, first_interval=0.1)
 
     if GRID_AVAILABLE:
         bpy.types.Scene.grid_settings = bpy.props.PointerProperty(type=GridSettings)
@@ -900,6 +948,11 @@ def unregister():
 
     for cls in reversed(classes):
         try:
+            if SHADER_AVAILABLE and cls.__name__ == 'ShaderGeneratorSettings' and hasattr(cls, 'collection_shaders'):
+                try:
+                    del cls.collection_shaders
+                except Exception:
+                    pass
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
