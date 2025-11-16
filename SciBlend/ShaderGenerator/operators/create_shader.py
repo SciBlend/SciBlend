@@ -131,9 +131,9 @@ def _get_collection_items(self, context):
 
 
 class MATERIAL_OT_create_shader(Operator):
-    """Create a colormap-based material and apply it to selected objects, a collection, or all meshes."""
+    """Create or update a colormap-based material for the selected collection."""
     bl_idname = "material.create_shader"
-    bl_label = "Create and Apply Shader"
+    bl_label = "Create/Update Shader"
     bl_options = {'REGISTER', 'UNDO'}
 
     colormap: EnumProperty(
@@ -200,35 +200,88 @@ class MATERIAL_OT_create_shader(Operator):
     )
 
     def execute(self, context):
-        """Create the material, assign to objects, and trigger legend updates if enabled."""
-        active_obj = context.active_object
+        """Create or update the material for the selected collection."""
+        settings = context.scene.shader_generator_settings
+        if not settings:
+            self.report({'ERROR'}, "Shader Generator settings not found")
+            return {'CANCELLED'}
+            
+        if settings.active_collection_index < 0 or settings.active_collection_index >= len(settings.collection_shaders):
+            self.report({'ERROR'}, "No collection selected")
+            return {'CANCELLED'}
+            
+        item = settings.collection_shaders[settings.active_collection_index]
+        coll = bpy.data.collections.get(item.collection_name)
+        
+        if not coll:
+            self.report({'ERROR'}, f"Collection '{item.collection_name}' not found")
+            return {'CANCELLED'}
+            
         try:
-            selected_attr = getattr(self, 'attribute_name', None)
+            selected_attr = settings.attribute_name
         except Exception:
-            selected_attr = None
-        if not selected_attr:
             items = get_attribute_items(self, context)
             selected_attr = items[0][0] if items else "Col"
-        if active_obj and getattr(active_obj, 'type', None) == 'MESH':
-            color_range = get_color_range(active_obj, selected_attr, self.normalization)
-        else:
-            color_range = None
+            
+        color_range = None
+        for obj in coll.objects:
+            if obj.type == 'MESH':
+                try:
+                    color_range = get_color_range(obj, selected_attr, settings.normalization)
+                    break
+                except Exception:
+                    pass
 
         custom_colormap = None
-        if self.colormap == "CUSTOM" and getattr(getattr(context, 'scene', None), 'custom_colorramp', None):
-            custom_colormap = [{"position": color.position, "color": color.color[:3]} for color in context.scene.custom_colorramp]
+        if settings.colormap == "CUSTOM":
+            scene = context.scene
+            if hasattr(scene, 'custom_colorramp') and scene.custom_colorramp:
+                custom_colormap = [
+                    {"position": color.position, "color": color.color[:3]} 
+                    for color in scene.custom_colorramp
+                ]
 
-        mat = create_colormap_material(
-            self.colormap,
-            self.interpolation,
-            self.gamma,
-            custom_colormap,
-            color_range=color_range,
-            normalization=self.normalization,
-            attribute_name=selected_attr,
-        )
-
-        mat.name = self.material_name
+        existing_mat = None
+        if item.material_name:
+            existing_mat = bpy.data.materials.get(item.material_name)
+            
+        if existing_mat and existing_mat.get('sciblend_colormap') is not None:
+            mat = existing_mat
+            logger.info("Updating existing material: %s", mat.name)
+            
+            from ..utils.material_updater import (
+                update_material_colormap,
+                update_material_interpolation,
+                update_material_gamma,
+                update_material_attribute,
+                update_material_normalization,
+            )
+            
+            update_material_colormap(mat, settings.colormap, custom_colormap)
+            update_material_interpolation(mat, settings.interpolation)
+            update_material_gamma(mat, settings.gamma)
+            update_material_attribute(mat, selected_attr)
+            update_material_normalization(mat, settings.normalization, color_range)
+            
+            action = "Updated"
+        else:
+            mat = create_colormap_material(
+                settings.colormap,
+                settings.interpolation,
+                settings.gamma,
+                custom_colormap,
+                color_range=color_range,
+                normalization=settings.normalization,
+                attribute_name=selected_attr,
+            )
+            
+            mat.name = f"Shader_{item.collection_name}"
+            
+            item.material_name = mat.name
+            item.is_shader_generator = True
+            
+            action = "Created"
+            logger.info("Created new material: %s", mat.name)
 
         def _apply_to_objects(objects):
             """Assign the material and update any Set Material nodes for each mesh object in 'objects'."""
@@ -261,50 +314,34 @@ class MATERIAL_OT_create_shader(Operator):
                                         update_set_material_nodes(node.node_tree)
                             update_set_material_nodes(modifier.node_group)
 
-        if getattr(self, 'target_collection', ""):
-            coll = bpy.data.collections.get(self.target_collection)
-            if coll is not None:
-                _apply_to_objects(list(coll.objects))
-        elif self.apply_to_all:
-            _apply_to_objects([obj for obj in bpy.data.objects if getattr(obj, 'type', None) == 'MESH'])
-        else:
-            _apply_to_objects(list(context.selected_objects))
+        _apply_to_objects(list(coll.objects))
 
         try:
-            scene = context.scene
-            try:
-                from ..properties.settings import ShaderGeneratorSettings
-                if not hasattr(bpy.types.Scene, 'shader_generator_settings'):
-                    bpy.types.Scene.shader_generator_settings = bpy.props.PointerProperty(type=ShaderGeneratorSettings)
-                settings = context.scene.shader_generator_settings
-                map_range = None
-                try:
-                    from ..utils.nodes import find_shader_map_range_node
-                    map_range = find_shader_map_range_node(mat)
-                except Exception:
-                    map_range = None
-                if map_range and 'From Min' in map_range.inputs and 'From Max' in map_range.inputs:
-                    settings.from_min = float(map_range.inputs['From Min'].default_value)
-                    settings.from_max = float(map_range.inputs['From Max'].default_value)
-            except Exception:
-                pass
+            from ..utils.nodes import find_shader_map_range_node
+            map_range = find_shader_map_range_node(mat)
+            if map_range and 'From Min' in map_range.inputs and 'From Max' in map_range.inputs:
+                settings.from_min = float(map_range.inputs['From Min'].default_value)
+                settings.from_max = float(map_range.inputs['From Max'].default_value)
+        except Exception:
+            pass
 
-            settings = getattr(scene, 'legend_settings', None)
-            if settings and getattr(settings, 'auto_from_shader', False):
+        try:
+            legend_settings = getattr(context.scene, 'legend_settings', None)
+            if legend_settings and getattr(legend_settings, 'auto_from_shader', False):
                 try:
                     from ...LegendGenerator.operators.choose_shader import update_legend_from_shader
                     obj = context.active_object
-                    update_legend_from_shader(scene, obj)
+                    update_legend_from_shader(context.scene, obj)
                 except Exception:
                     pass
                 try:
-                    if getattr(settings, 'legend_enabled', True):
+                    if getattr(legend_settings, 'legend_enabled', True):
                         bpy.ops.compositor.png_overlay()
                 except Exception:
                     pass
         except Exception:
             pass
 
-        self.report({'INFO'}, f"Applied shader with {self.colormap} colormap, {self.interpolation} interpolation, and gamma {self.gamma}")
-        logger.info("Shader applied successfully")
+        self.report({'INFO'}, f"{action} shader for collection '{item.collection_name}'")
+        logger.info("%s shader for collection %s", action, item.collection_name)
         return {'FINISHED'} 
