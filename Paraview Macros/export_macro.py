@@ -120,18 +120,22 @@ else:
 
 user_vdb_dims = None
 if ext == 'vdb':
-    dims_input = input("VDB sampling dimensions (e.g., 256 or 256,256,128) [default 128]: ").strip()
+    dims_input = input("VDB sampling dimensions (e.g., 256 or 256,256,128, or 'n' for original) [default 128]: ").strip()
     if dims_input:
-        try:
-            parts = [int(x) for x in dims_input.replace(' ', '').split(',') if x != '']
-            if len(parts) == 1 and parts[0] > 0:
-                user_vdb_dims = [parts[0], parts[0], parts[0]]
-            elif len(parts) >= 3 and parts[0] > 0 and parts[1] > 0 and parts[2] > 0:
-                user_vdb_dims = [parts[0], parts[1], parts[2]]
-            else:
+        if dims_input.lower() == 'n':
+            user_vdb_dims = 'original'
+            print("Using original volume extents.")
+        else:
+            try:
+                parts = [int(x) for x in dims_input.replace(' ', '').split(',') if x != '']
+                if len(parts) == 1 and parts[0] > 0:
+                    user_vdb_dims = [parts[0], parts[0], parts[0]]
+                elif len(parts) >= 3 and parts[0] > 0 and parts[1] > 0 and parts[2] > 0:
+                    user_vdb_dims = [parts[0], parts[1], parts[2]]
+                else:
+                    print("Invalid input. Falling back to defaults.")
+            except Exception:
                 print("Invalid input. Falling back to defaults.")
-        except Exception:
-            print("Invalid input. Falling back to defaults.")
 
 total_frames = len(timesteps)
 if total_frames > 1:
@@ -148,6 +152,43 @@ if total_frames > 1:
 else:
     start = end = 1
     print("\nStatic data (single frame)")
+
+original_name = ""
+try:
+    if hasattr(active_source, 'FileName'):
+        original_name = os.path.splitext(os.path.basename(active_source.FileName[0]))[0]
+    elif hasattr(active_source, 'Input') and hasattr(active_source.Input, 'FileName'):
+        original_name = os.path.splitext(os.path.basename(active_source.Input.FileName[0]))[0]
+    else:
+        original_name = active_source.GetXMLName()
+except:
+    original_name = "data"
+
+print(f"\nOriginal source name: {original_name}")
+
+naming_choice = input("""
+Select naming convention (default=1):
+1: Original name (e.g., {}_frame_XXXX.{})
+2: Custom name
+3: Generic name (data_frame_XXXX.{})
+
+Option: """.format(original_name, ext, ext)).strip() or '1'
+
+base_filename = ""
+if naming_choice == '1':
+    base_filename = original_name
+    print(f"Using original name: {base_filename}")
+elif naming_choice == '2':
+    custom_name = input("\nEnter custom filename (without extension): ").strip()
+    if custom_name:
+        base_filename = custom_name
+        print(f"Using custom name: {base_filename}")
+    else:
+        base_filename = "data"
+        print("No name provided. Using 'data' as default.")
+else:
+    base_filename = "data"
+    print("Using generic name: data")
 
 success_count = 0
 view = GetActiveViewOrCreate('RenderView')
@@ -193,7 +234,10 @@ def export_points(data, filepath, current_time):
                 def build_vdb_volume_source(src, vtk_data):
                     classname = vtk_data.GetClassName()
                     if "ImageData" in classname or "StructuredGrid" in classname:
-                        if user_vdb_dims:
+                        if user_vdb_dims == 'original':
+                            print("Using original volume dimensions.")
+                            return src
+                        elif user_vdb_dims:
                             resample = ResampleToImage(Input=src)
                             resample.UseInputBounds = 1
                             resample.SamplingDimensions = user_vdb_dims
@@ -202,7 +246,9 @@ def export_points(data, filepath, current_time):
                     print("Input is not a regular volume; resampling to ImageData for VDB export...")
                     resample = ResampleToImage(Input=src)
                     resample.UseInputBounds = 1
-                    if user_vdb_dims:
+                    if user_vdb_dims == 'original':
+                        print("Using original bounds without resampling dimensions.")
+                    elif user_vdb_dims:
                         resample.SamplingDimensions = user_vdb_dims
                     else:
                         dims_env = os.environ.get('PARAVIEW_VDB_DIMS', '').strip()
@@ -258,7 +304,10 @@ for frame in range(start, end + 1):
     view.ViewTime = current_time
     Render()
     
-    filename = f"data_frame_{frame:04d}.{ext}"
+    if total_frames > 1:
+        filename = f"{base_filename}_frame_{frame:04d}.{ext}"
+    else:
+        filename = f"{base_filename}.{ext}"
     filepath = os.path.join(folder_path, filename)
     
     print(f"\nExporting frame {frame} to {filepath}")
@@ -270,7 +319,11 @@ for frame in range(start, end + 1):
     else:
         print(f"✗ Error exporting frame {frame}")
         if ext != 'vtk':
-            fallback_path = os.path.join(folder_path, f"data_frame_{frame:04d}.vtk")
+            if total_frames > 1:
+                fallback_filename = f"{base_filename}_frame_{frame:04d}.vtk"
+            else:
+                fallback_filename = f"{base_filename}.vtk"
+            fallback_path = os.path.join(folder_path, fallback_filename)
             print(f"Trying alternative format (.vtk): {fallback_path}")
             UpdatePipeline(time=current_time, proxy=active_source)
             SaveData(fallback_path, proxy=active_source)
