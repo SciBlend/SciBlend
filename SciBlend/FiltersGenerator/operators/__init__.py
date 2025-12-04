@@ -14,6 +14,7 @@ from .contour_live import FILTERS_OT_build_contour_surface
 from .clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surface
 from .slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
 from .calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
+from .interpolate import FILTERS_OT_apply_interpolation, FILTERS_OT_compute_attribute_range
 
 
 def register():

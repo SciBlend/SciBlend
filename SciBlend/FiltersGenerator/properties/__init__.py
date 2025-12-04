@@ -6,6 +6,7 @@ from .contour_settings import FiltersContourSettings
 from .clip_settings import FiltersClipSettings
 from .slice_settings import FiltersSliceSettings
 from .calculator_settings import FiltersCalculatorSettings
+from .interpolation_settings import FiltersInterpolationSettings
 
 
 def register():

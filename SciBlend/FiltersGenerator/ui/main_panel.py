@@ -216,4 +216,71 @@ class FILTERSGENERATOR_PT_geometry_filters(bpy.types.Panel):
         row.prop(cl, "plane_object", text="Clip Plane")
         row.operator("filters.clip_ensure_plane", text="Ensure", icon='MESH_PLANE')
         col.prop(cl, "side", text="Side")
-        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA') 
+        col.operator("filters.build_clip_surface", text="Build/Update", icon='MESH_DATA')
+
+
+class FILTERSGENERATOR_PT_attribute_interpolation(bpy.types.Panel):
+    bl_label = "Attribute Smoothing"
+    bl_idname = "FILTERSGENERATOR_PT_attribute_interpolation"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = 'FILTERSGENERATOR_PT_main_panel'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        s = getattr(context.scene, "filters_interpolation_settings", None)
+        if not s:
+            layout.label(text="Smoothing settings unavailable", icon='ERROR')
+            return
+
+        layout.prop(s, "target_collection", text="Collection")
+        
+        # Show mesh count in collection
+        coll_name = getattr(s, 'target_collection', '')
+        if coll_name:
+            coll = bpy.data.collections.get(coll_name)
+            if coll:
+                mesh_count = sum(1 for obj in coll.objects if obj.type == 'MESH')
+                layout.label(text=f"{mesh_count} mesh(es) in collection", icon='OUTLINER_OB_MESH')
+        
+        row = layout.row(align=True)
+        row.prop(s, "source_attribute", text="Source")
+        row.operator("filters.compute_attribute_range", text="", icon='SEQ_HISTOGRAM')
+        
+        layout.prop(s, "method", text="Method")
+
+        box = layout.box()
+        box.label(text="Parameters", icon='PREFERENCES')
+        col = box.column(align=True)
+        
+        method = getattr(s, 'method', 'IDW')
+        
+        # IDW parameters
+        if method == 'IDW':
+            col.prop(s, "k_neighbors")
+            col.prop(s, "idw_power")
+            col.prop(s, "include_self")
+        
+        # Gaussian parameters
+        elif method == 'GAUSSIAN':
+            col.prop(s, "k_neighbors")
+            col.prop(s, "gaussian_sigma")
+        
+        # Laplacian parameters
+        elif method == 'LAPLACIAN':
+            col.prop(s, "laplacian_iterations")
+            col.prop(s, "laplacian_factor")
+        
+        # Nearest neighbor parameters
+        elif method == 'NEAREST':
+            col.prop(s, "k_neighbors", text="K-th Neighbor")
+        
+        # Shepard (VTK) parameters
+        elif method == 'SHEPARD':
+            col.prop(s, "shepard_power")
+            col.prop(s, "shepard_resolution")
+
+        layout.separator()
+        layout.prop(s, "output_name", text="Output Name")
+        layout.operator("filters.apply_interpolation", text="Apply Smoothing", icon='MOD_SMOOTH')
