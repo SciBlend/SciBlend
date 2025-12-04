@@ -232,17 +232,23 @@ def export_points(data, filepath, current_time):
         elif ext == '.vdb':
             try:
                 def build_vdb_volume_source(src, vtk_data):
+                    """Build a volume source suitable for VDB export.
+                    
+                    Returns:
+                        tuple: (source_proxy, resample_proxy or None)
+                               resample_proxy is returned for cleanup if created
+                    """
                     classname = vtk_data.GetClassName()
                     if "ImageData" in classname or "StructuredGrid" in classname:
                         if user_vdb_dims == 'original':
                             print("Using original volume dimensions.")
-                            return src
+                            return src, None
                         elif user_vdb_dims:
                             resample = ResampleToImage(Input=src)
                             resample.UseInputBounds = 1
                             resample.SamplingDimensions = user_vdb_dims
-                            return resample
-                        return src
+                            return resample, resample
+                        return src, None
                     print("Input is not a regular volume; resampling to ImageData for VDB export...")
                     resample = ResampleToImage(Input=src)
                     resample.UseInputBounds = 1
@@ -266,13 +272,23 @@ def export_points(data, filepath, current_time):
                         except Exception:
                             print("Invalid PARAVIEW_VDB_DIMS; using 128^3")
                             resample.SamplingDimensions = [128, 128, 128]
-                    return resample
+                    return resample, resample
 
-                src_for_vdb = build_vdb_volume_source(active_source, data)
+                src_for_vdb, resample_to_cleanup = build_vdb_volume_source(active_source, data)
                 UpdatePipeline(time=current_time, proxy=active_source)
                 UpdatePipeline(time=current_time, proxy=src_for_vdb)
                 SaveData(filepath, proxy=src_for_vdb)
-                return os.path.exists(filepath)
+                export_success = os.path.exists(filepath)
+                
+                # Clean up ResampleToImage filter to avoid memory bloat
+                if resample_to_cleanup is not None:
+                    try:
+                        Delete(resample_to_cleanup)
+                        print("Cleaned up ResampleToImage filter")
+                    except Exception as cleanup_error:
+                        print(f"Warning: Could not clean up ResampleToImage: {cleanup_error}")
+                
+                return export_success
             except Exception as e:
                 print("Error exporting to VDB. Ensure the OpenVDB plugin is enabled and input is a volume or convertible to volume.")
                 print(f"Details: {str(e)}")
