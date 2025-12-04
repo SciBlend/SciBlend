@@ -537,6 +537,7 @@ try:
     from .FiltersGenerator.properties.clip_settings import FiltersClipSettings
     from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
     from .FiltersGenerator.properties.calculator_settings import FiltersCalculatorSettings
+    from .FiltersGenerator.properties.interpolation_settings import FiltersInterpolationSettings
     from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
     from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
     from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
@@ -553,11 +554,13 @@ try:
     from .FiltersGenerator.operators.clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surface
     from .FiltersGenerator.operators.slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
     from .FiltersGenerator.operators.calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
+    from .FiltersGenerator.operators.interpolate import FILTERS_OT_apply_interpolation, FILTERS_OT_compute_attribute_range
     from .FiltersGenerator.ui.volume_list import FILTERS_UL_volume_list
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_geometry_filters
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_attribute_interpolation
     
     VolumeRenderingSettings.__annotations__['volume_items'] = bpy.props.CollectionProperty(type=VolumeItem)
     
@@ -571,6 +574,7 @@ try:
         FiltersClipSettings,
         FiltersSliceSettings,
         FiltersCalculatorSettings,
+        FiltersInterpolationSettings,
         FILTERS_OT_create_emitter,
         FILTERS_OT_place_emitter,
         FILTERS_OT_generate_streamline,
@@ -591,11 +595,14 @@ try:
         FILTERS_OT_calculator_append_var,
         FILTERS_OT_calculator_append_attr,
         FILTERS_OT_calculator_append_func,
+        FILTERS_OT_apply_interpolation,
+        FILTERS_OT_compute_attribute_range,
         FILTERS_UL_volume_list,
         FILTERSGENERATOR_PT_main_panel,
         FILTERSGENERATOR_PT_stream_tracers,
         FILTERSGENERATOR_PT_volume_filter,
         FILTERSGENERATOR_PT_geometry_filters,
+        FILTERSGENERATOR_PT_attribute_interpolation,
     )
 except ImportError:
     class FiltersGeneratorPanelStub(bpy.types.Panel):
@@ -925,6 +932,7 @@ def register():
         from .FiltersGenerator.properties.clip_settings import FiltersClipSettings
         from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
         from .FiltersGenerator.properties.calculator_settings import FiltersCalculatorSettings
+        from .FiltersGenerator.properties.interpolation_settings import FiltersInterpolationSettings
         bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
         bpy.types.Scene.filters_volume_settings = bpy.props.PointerProperty(type=VolumeRenderingSettings)
         bpy.types.Scene.filters_threshold_settings = bpy.props.PointerProperty(type=FiltersThresholdSettings)
@@ -932,6 +940,7 @@ def register():
         bpy.types.Scene.filters_clip_settings = bpy.props.PointerProperty(type=FiltersClipSettings)
         bpy.types.Scene.filters_slice_settings = bpy.props.PointerProperty(type=FiltersSliceSettings)
         bpy.types.Scene.filters_calculator_settings = bpy.props.PointerProperty(type=FiltersCalculatorSettings)
+        bpy.types.Scene.filters_interpolation_settings = bpy.props.PointerProperty(type=FiltersInterpolationSettings)
 
 
 def unregister():
@@ -1001,6 +1010,8 @@ def unregister():
         del bpy.types.Scene.filters_slice_settings
     if hasattr(bpy.types.Scene, 'filters_calculator_settings'):
         del bpy.types.Scene.filters_calculator_settings
+    if hasattr(bpy.types.Scene, 'filters_interpolation_settings'):
+        del bpy.types.Scene.filters_interpolation_settings
 
     if SCIBLENDNODES_AVAILABLE:
         try:
