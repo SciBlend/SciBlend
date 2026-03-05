@@ -284,3 +284,180 @@ class FILTERSGENERATOR_PT_attribute_interpolation(bpy.types.Panel):
         layout.separator()
         layout.prop(s, "output_name", text="Output Name")
         layout.operator("filters.apply_interpolation", text="Apply Smoothing", icon='MOD_SMOOTH')
+
+
+class FILTERSGENERATOR_PT_collection_modifiers(bpy.types.Panel):
+    bl_label = "Collection Modifiers"
+    bl_idname = "FILTERSGENERATOR_PT_collection_modifiers"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_parent_id = 'FILTERSGENERATOR_PT_main_panel'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        settings = getattr(context.scene, "filters_modifier_settings", None)
+        if not settings:
+            layout.label(text="Modifier settings unavailable", icon='ERROR')
+            return
+
+        # Target collection selector
+        layout.prop(settings, "target_collection", text="Collection")
+        
+        # Show mesh count in collection
+        coll_name = getattr(settings, 'target_collection', '')
+        if coll_name:
+            coll = bpy.data.collections.get(coll_name)
+            if coll:
+                mesh_count = sum(1 for obj in coll.all_objects if obj.type == 'MESH')
+                layout.label(text=f"{mesh_count} mesh(es) in collection", icon='OUTLINER_OB_MESH')
+        
+        # Modifiers list (inspired by Volume Filter)
+        box = layout.box()
+        box.label(text="Modifiers Stack", icon='MODIFIER')
+        row = box.row()
+        row.template_list(
+            "FILTERS_UL_modifier_list",
+            "",
+            settings,
+            "modifier_items",
+            settings,
+            "modifier_items_index",
+            rows=4
+        )
+        
+        col = row.column(align=True)
+        col.operator("filters.modifier_item_add", text="", icon='ADD')
+        col.operator("filters.modifier_item_remove", text="", icon='REMOVE')
+        col.separator()
+        col.operator("filters.modifier_item_move_up", text="", icon='TRIA_UP')
+        col.operator("filters.modifier_item_move_down", text="", icon='TRIA_DOWN')
+        col.separator()
+        col.operator("filters.modifier_item_duplicate", text="", icon='DUPLICATE')
+        
+        if not settings.modifier_items:
+            layout.label(text="Add modifiers to the stack", icon='INFO')
+            return
+        
+        if settings.modifier_items_index >= len(settings.modifier_items):
+            return
+        
+        item = settings.modifier_items[settings.modifier_items_index]
+        
+        # Modifier settings box
+        box = layout.box()
+        box.label(text=f"Settings: {item.name}", icon='PREFERENCES')
+        col = box.column(align=True)
+        col.prop(item, "modifier_type", text="Type")
+        col.prop(item, "name", text="Name")
+        
+        # Dynamic settings based on modifier type
+        settings_box = layout.box()
+        mod_type = item.modifier_type
+        
+        if mod_type == 'SUBSURF':
+            settings_box.label(text="Subdivision Surface", icon='MOD_SUBSURF')
+            col = settings_box.column(align=True)
+            col.prop(item, "subsurf_levels", text="Viewport Levels")
+            col.prop(item, "subsurf_render_levels", text="Render Levels")
+            col.prop(item, "subsurf_uv_smooth", text="UV Smooth")
+            
+        elif mod_type == 'SMOOTH':
+            settings_box.label(text="Smooth", icon='MOD_SMOOTH')
+            col = settings_box.column(align=True)
+            col.prop(item, "smooth_factor")
+            col.prop(item, "smooth_iterations")
+            
+        elif mod_type == 'LAPLACIANSMOOTH':
+            settings_box.label(text="Laplacian Smooth", icon='MOD_SMOOTH')
+            col = settings_box.column(align=True)
+            col.prop(item, "laplacian_iterations")
+            col.prop(item, "laplacian_lambda")
+            col.prop(item, "laplacian_lambda_border")
+            col.prop(item, "laplacian_use_volume_preserve")
+            col.prop(item, "laplacian_use_normalized")
+            
+        elif mod_type == 'CORRECTIVE_SMOOTH':
+            settings_box.label(text="Corrective Smooth", icon='MOD_SMOOTH')
+            col = settings_box.column(align=True)
+            col.prop(item, "corrective_factor")
+            col.prop(item, "corrective_iterations")
+            col.prop(item, "corrective_smooth_type")
+            col.prop(item, "corrective_use_only_smooth")
+            col.prop(item, "corrective_use_pin_boundary")
+            
+        elif mod_type == 'DECIMATE':
+            settings_box.label(text="Decimate", icon='MOD_DECIM')
+            col = settings_box.column(align=True)
+            col.prop(item, "decimate_mode")
+            if item.decimate_mode == 'COLLAPSE':
+                col.prop(item, "decimate_ratio")
+                col.prop(item, "decimate_use_symmetry")
+            elif item.decimate_mode == 'DISSOLVE':
+                col.prop(item, "decimate_angle_limit")
+                
+        elif mod_type == 'REMESH':
+            settings_box.label(text="Remesh", icon='MOD_REMESH')
+            col = settings_box.column(align=True)
+            col.prop(item, "remesh_mode")
+            if item.remesh_mode == 'VOXEL':
+                col.prop(item, "remesh_voxel_size")
+            else:
+                col.prop(item, "remesh_octree_depth")
+                col.prop(item, "remesh_scale")
+            col.prop(item, "remesh_use_smooth_shade")
+            col.prop(item, "remesh_use_remove_disconnected")
+                
+        elif mod_type == 'SOLIDIFY':
+            settings_box.label(text="Solidify", icon='MOD_SOLIDIFY')
+            col = settings_box.column(align=True)
+            col.prop(item, "solidify_thickness")
+            col.prop(item, "solidify_offset")
+            col.prop(item, "solidify_use_even_offset")
+            col.prop(item, "solidify_use_rim")
+            col.prop(item, "solidify_use_rim_only")
+            
+        elif mod_type == 'WIREFRAME':
+            settings_box.label(text="Wireframe", icon='MOD_WIREFRAME')
+            col = settings_box.column(align=True)
+            col.prop(item, "wireframe_thickness")
+            col.prop(item, "wireframe_use_replace")
+            col.prop(item, "wireframe_use_even_offset")
+            col.prop(item, "wireframe_use_relative_offset")
+            col.prop(item, "wireframe_use_boundary")
+            
+        elif mod_type == 'TRIANGULATE':
+            settings_box.label(text="Triangulate", icon='MOD_TRIANGULATE')
+            col = settings_box.column(align=True)
+            col.prop(item, "triangulate_quad_method")
+            col.prop(item, "triangulate_ngon_method")
+            col.prop(item, "triangulate_min_vertices")
+            col.prop(item, "triangulate_keep_custom_normals")
+            
+        elif mod_type == 'WELD':
+            settings_box.label(text="Weld", icon='AUTOMERGE_ON')
+            col = settings_box.column(align=True)
+            col.prop(item, "weld_threshold")
+            col.prop(item, "weld_mode")
+            
+        elif mod_type == 'WEIGHTED_NORMAL':
+            settings_box.label(text="Weighted Normal", icon='MOD_NORMALEDIT')
+            col = settings_box.column(align=True)
+            col.prop(item, "weighted_normal_mode")
+            col.prop(item, "weighted_normal_weight")
+            col.prop(item, "weighted_normal_thresh")
+            col.prop(item, "weighted_normal_keep_sharp")
+            col.prop(item, "weighted_normal_face_influence")
+            
+        elif mod_type == 'EDGE_SPLIT':
+            settings_box.label(text="Edge Split", icon='MOD_EDGESPLIT')
+            col = settings_box.column(align=True)
+            col.prop(item, "edge_split_angle")
+            col.prop(item, "edge_split_use_edge_angle")
+            col.prop(item, "edge_split_use_edge_sharp")
+        
+        # Action buttons
+        layout.separator()
+        row = layout.row(align=True)
+        row.operator("filters.apply_collection_modifiers", text="Apply to Collection", icon='CHECKMARK')
+        row.operator("filters.remove_collection_modifiers", text="Remove All", icon='X')

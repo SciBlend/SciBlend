@@ -15,6 +15,16 @@ from .clip_live import FILTERS_OT_clip_ensure_plane, FILTERS_OT_build_clip_surfa
 from .slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
 from .calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
 from .interpolate import FILTERS_OT_apply_interpolation, FILTERS_OT_compute_attribute_range
+from .collection_modifiers import (
+    FILTERS_OT_modifier_item_add,
+    FILTERS_OT_modifier_item_remove,
+    FILTERS_OT_modifier_item_move_up,
+    FILTERS_OT_modifier_item_move_down,
+    FILTERS_OT_apply_collection_modifiers,
+    FILTERS_OT_remove_collection_modifiers,
+    FILTERS_OT_update_collection_modifiers,
+    FILTERS_OT_modifier_item_duplicate,
+)
 
 
 def register():
