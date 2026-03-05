@@ -538,6 +538,7 @@ try:
     from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
     from .FiltersGenerator.properties.calculator_settings import FiltersCalculatorSettings
     from .FiltersGenerator.properties.interpolation_settings import FiltersInterpolationSettings
+    from .FiltersGenerator.properties.modifier_item import ModifierItem, CollectionModifiersSettings
     from .FiltersGenerator.operators.create_emitter import FILTERS_OT_create_emitter
     from .FiltersGenerator.operators.place_emitter import FILTERS_OT_place_emitter
     from .FiltersGenerator.operators.generate_streamline import FILTERS_OT_generate_streamline
@@ -555,14 +556,27 @@ try:
     from .FiltersGenerator.operators.slice_live import FILTERS_OT_slice_ensure_plane, FILTERS_OT_build_slice_surface
     from .FiltersGenerator.operators.calculator import FILTERS_OT_calculator_apply, FILTERS_OT_calculator_append_var, FILTERS_OT_calculator_append_attr, FILTERS_OT_calculator_append_func
     from .FiltersGenerator.operators.interpolate import FILTERS_OT_apply_interpolation, FILTERS_OT_compute_attribute_range
+    from .FiltersGenerator.operators.collection_modifiers import (
+        FILTERS_OT_modifier_item_add,
+        FILTERS_OT_modifier_item_remove,
+        FILTERS_OT_modifier_item_move_up,
+        FILTERS_OT_modifier_item_move_down,
+        FILTERS_OT_apply_collection_modifiers,
+        FILTERS_OT_remove_collection_modifiers,
+        FILTERS_OT_update_collection_modifiers,
+        FILTERS_OT_modifier_item_duplicate,
+    )
     from .FiltersGenerator.ui.volume_list import FILTERS_UL_volume_list
+    from .FiltersGenerator.ui.modifier_list import FILTERS_UL_modifier_list
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_main_panel
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_stream_tracers
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_volume_filter
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_geometry_filters
     from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_attribute_interpolation
+    from .FiltersGenerator.ui.main_panel import FILTERSGENERATOR_PT_collection_modifiers
     
     VolumeRenderingSettings.__annotations__['volume_items'] = bpy.props.CollectionProperty(type=VolumeItem)
+    CollectionModifiersSettings.__annotations__['modifier_items'] = bpy.props.CollectionProperty(type=ModifierItem)
     
     FILTERS_AVAILABLE = True
     filters_classes = (
@@ -575,6 +589,8 @@ try:
         FiltersSliceSettings,
         FiltersCalculatorSettings,
         FiltersInterpolationSettings,
+        ModifierItem,
+        CollectionModifiersSettings,
         FILTERS_OT_create_emitter,
         FILTERS_OT_place_emitter,
         FILTERS_OT_generate_streamline,
@@ -597,12 +613,22 @@ try:
         FILTERS_OT_calculator_append_func,
         FILTERS_OT_apply_interpolation,
         FILTERS_OT_compute_attribute_range,
+        FILTERS_OT_modifier_item_add,
+        FILTERS_OT_modifier_item_remove,
+        FILTERS_OT_modifier_item_move_up,
+        FILTERS_OT_modifier_item_move_down,
+        FILTERS_OT_apply_collection_modifiers,
+        FILTERS_OT_remove_collection_modifiers,
+        FILTERS_OT_update_collection_modifiers,
+        FILTERS_OT_modifier_item_duplicate,
         FILTERS_UL_volume_list,
+        FILTERS_UL_modifier_list,
         FILTERSGENERATOR_PT_main_panel,
         FILTERSGENERATOR_PT_stream_tracers,
         FILTERSGENERATOR_PT_volume_filter,
         FILTERSGENERATOR_PT_geometry_filters,
         FILTERSGENERATOR_PT_attribute_interpolation,
+        FILTERSGENERATOR_PT_collection_modifiers,
     )
 except ImportError:
     class FiltersGeneratorPanelStub(bpy.types.Panel):
@@ -933,6 +959,7 @@ def register():
         from .FiltersGenerator.properties.slice_settings import FiltersSliceSettings
         from .FiltersGenerator.properties.calculator_settings import FiltersCalculatorSettings
         from .FiltersGenerator.properties.interpolation_settings import FiltersInterpolationSettings
+        from .FiltersGenerator.properties.modifier_item import CollectionModifiersSettings
         bpy.types.Scene.filters_emitter_settings = bpy.props.PointerProperty(type=FiltersEmitterSettings)
         bpy.types.Scene.filters_volume_settings = bpy.props.PointerProperty(type=VolumeRenderingSettings)
         bpy.types.Scene.filters_threshold_settings = bpy.props.PointerProperty(type=FiltersThresholdSettings)
@@ -941,6 +968,7 @@ def register():
         bpy.types.Scene.filters_slice_settings = bpy.props.PointerProperty(type=FiltersSliceSettings)
         bpy.types.Scene.filters_calculator_settings = bpy.props.PointerProperty(type=FiltersCalculatorSettings)
         bpy.types.Scene.filters_interpolation_settings = bpy.props.PointerProperty(type=FiltersInterpolationSettings)
+        bpy.types.Scene.filters_modifier_settings = bpy.props.PointerProperty(type=CollectionModifiersSettings)
 
 
 def unregister():
@@ -1000,6 +1028,8 @@ def unregister():
         del bpy.types.Scene.filters_emitter_settings
     if hasattr(bpy.types.Scene, 'filters_volume_settings'):
         del bpy.types.Scene.filters_volume_settings
+    if hasattr(bpy.types.Scene, 'filters_modifier_settings'):
+        del bpy.types.Scene.filters_modifier_settings
     if hasattr(bpy.types.Scene, 'filters_threshold_settings'):
         del bpy.types.Scene.filters_threshold_settings
     if hasattr(bpy.types.Scene, 'filters_contour_settings'):
