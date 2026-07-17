@@ -1,6 +1,6 @@
 import bpy
 import logging
-from .colormaps import COLORMAPS, interpolate_colormap
+from .colormaps import COLORMAPS, interpolate_colormap, sample_colormap_colors
 from .nodes import find_shader_map_range_node
 
 logger = logging.getLogger(__name__)
@@ -27,11 +27,10 @@ def load_settings_from_material(material):
     settings['colormap'] = material.get('sciblend_colormap', 'viridis')
     settings['attribute'] = material.get('sciblend_attribute', 'Col')
     settings['normalization'] = material.get('sciblend_normalization', 'AUTO')
-    settings['enable_transparency'] = material.get('sciblend_enable_transparency', False)
-    settings['transparency_mode'] = material.get('sciblend_transparency_mode', 'RANGE')
-    settings['transparency_min'] = material.get('sciblend_transparency_min', 0.0)
-    settings['transparency_max'] = material.get('sciblend_transparency_max', 0.1)
-    settings['invert_transparency'] = material.get('sciblend_invert_transparency', False)
+    settings['is_integer'] = material.get('sciblend_is_integer', False)
+    settings['unique_values'] = list(material.get('sciblend_unique_values', []))
+    settings['enable_filters'] = material.get('sciblend_enable_filters', False)
+    settings['filters'] = list(material.get('sciblend_filters', []))
     
     if material.use_nodes and material.node_tree:
         nodes = material.node_tree.nodes
@@ -132,7 +131,46 @@ def find_attribute_node(material):
     return None
 
 
-def update_material_colormap(material, colormap_name, custom_colormap=None):
+def _build_discrete_colorramp(node_colorramp, unique_values, colormap_name, custom_colormap=None):
+    """Populate a ColorRamp node with discrete stops for integer values.
+
+    Parameters
+    ----------
+    node_colorramp : bpy.types.ShaderNodeValToRGB
+        The ColorRamp node to populate.
+    unique_values : list[int]
+        Sorted list of unique integer values.
+    colormap_name : str
+        Name of the colormap or 'CUSTOM'.
+    custom_colormap : list[dict] | None
+        Custom colormap data when colormap_name is 'CUSTOM'.
+    """
+    n = len(unique_values)
+    if n == 0:
+        return
+
+    for i in range(len(node_colorramp.color_ramp.elements) - 1, 0, -1):
+        node_colorramp.color_ramp.elements.remove(node_colorramp.color_ramp.elements[i])
+
+    node_colorramp.color_ramp.interpolation = 'CONSTANT'
+    v0 = unique_values[0]
+    vn = unique_values[-1]
+    sampled_colors = sample_colormap_colors(colormap_name, n, custom_colormap)
+
+    for i, val in enumerate(unique_values):
+        if n == 1:
+            pos = 0.0
+        else:
+            pos = (val - v0) / (vn - v0)
+        if i == 0:
+            elem = node_colorramp.color_ramp.elements[0]
+            elem.position = pos
+        else:
+            elem = node_colorramp.color_ramp.elements.new(pos)
+        elem.color = sampled_colors[i] + (1.0,)
+
+
+def update_material_colormap(material, colormap_name, custom_colormap=None, unique_values=None):
     """Update the ColorRamp node with a new colormap.
     
     Parameters
@@ -143,6 +181,9 @@ def update_material_colormap(material, colormap_name, custom_colormap=None):
         Name of the colormap or 'CUSTOM'.
     custom_colormap : list[dict] or None
         Custom colormap data if colormap_name is 'CUSTOM'.
+    unique_values : list[int] | None
+        Sorted list of unique integer values for discrete mode. When provided
+        and len <= 32, the ColorRamp uses CONSTANT interpolation.
         
     Returns
     -------
@@ -158,23 +199,32 @@ def update_material_colormap(material, colormap_name, custom_colormap=None):
         return False
         
     try:
-        if colormap_name == "CUSTOM":
-            colors = custom_colormap
-        else:
-            colors = COLORMAPS[colormap_name]['colors']
-            
-        if len(colors) != 32:
-            colors = interpolate_colormap(colors, 32)
-            
+        is_discrete = unique_values is not None and 1 <= len(unique_values) <= 32
+
         for i in range(len(node_colorramp.color_ramp.elements) - 1, 0, -1):
             node_colorramp.color_ramp.elements.remove(node_colorramp.color_ramp.elements[i])
-            
-        for i, color_data in enumerate(colors):
-            if i == 0:
-                elem = node_colorramp.color_ramp.elements[0]
+
+        if is_discrete:
+            _build_discrete_colorramp(node_colorramp, unique_values, colormap_name, custom_colormap)
+            material['sciblend_is_integer'] = True
+            material['sciblend_unique_values'] = list(unique_values)
+        else:
+            if colormap_name == "CUSTOM":
+                colors = custom_colormap
             else:
-                elem = node_colorramp.color_ramp.elements.new(color_data['position'])
-            elem.color = color_data['color'] + (1.0,)
+                colors = COLORMAPS[colormap_name]['colors']
+                
+            if len(colors) != 32:
+                colors = interpolate_colormap(colors, 32)
+                
+            for i, color_data in enumerate(colors):
+                if i == 0:
+                    elem = node_colorramp.color_ramp.elements[0]
+                else:
+                    elem = node_colorramp.color_ramp.elements.new(color_data['position'])
+                elem.color = color_data['color'] + (1.0,)
+            
+            material['sciblend_is_integer'] = False
             
         node_colorramp.label = str(colormap_name)
         material['sciblend_colormap'] = colormap_name
@@ -188,7 +238,7 @@ def update_material_colormap(material, colormap_name, custom_colormap=None):
         return False
 
 
-def update_material_interpolation(material, interpolation):
+def update_material_interpolation(material, interpolation, unique_values=None):
     """Update the ColorRamp interpolation type.
     
     Parameters
@@ -197,6 +247,8 @@ def update_material_interpolation(material, interpolation):
         The material to update.
     interpolation : str
         Interpolation type ('CONSTANT', 'LINEAR', 'EASE', 'CARDINAL', 'B_SPLINE').
+    unique_values : list[int] | None
+        When provided and discrete mode is active, forces CONSTANT interpolation.
         
     Returns
     -------
@@ -211,7 +263,11 @@ def update_material_interpolation(material, interpolation):
         return False
         
     try:
-        node_colorramp.color_ramp.interpolation = interpolation
+        is_discrete = unique_values is not None and 1 <= len(unique_values) <= 32
+        if is_discrete:
+            node_colorramp.color_ramp.interpolation = 'CONSTANT'
+        else:
+            node_colorramp.color_ramp.interpolation = interpolation
         material.node_tree.update_tag()
         logger.info("Updated interpolation for material %s to %s", material.name, interpolation)
         return True
@@ -285,7 +341,7 @@ def update_material_attribute(material, attribute_name):
         return False
 
 
-def update_material_normalization(material, normalization, color_range=None):
+def update_material_normalization(material, normalization, color_range=None, unique_values=None):
     """Update the Map Range node based on normalization setting.
     
     Parameters
@@ -296,6 +352,8 @@ def update_material_normalization(material, normalization, color_range=None):
         One of 'AUTO', 'GLOBAL', 'NONE'.
     color_range : tuple[float, float] or None
         Min and max values for the range.
+    unique_values : list[int] | None
+        Sorted list of unique integer values for discrete mode.
         
     Returns
     -------
@@ -312,7 +370,21 @@ def update_material_normalization(material, normalization, color_range=None):
     try:
         material['sciblend_normalization'] = normalization
         
-        if color_range and normalization != 'NONE':
+        is_discrete = unique_values is not None and 1 <= len(unique_values) <= 32
+        
+        if is_discrete:
+            n = len(unique_values)
+            v0 = unique_values[0]
+            vn = unique_values[-1]
+            if n == 1:
+                map_range.inputs['From Min'].default_value = float(v0)
+                map_range.inputs['From Max'].default_value = float(v0 + 1)
+            else:
+                map_range.inputs['From Min'].default_value = float(v0)
+                map_range.inputs['From Max'].default_value = float(vn)
+            material['sciblend_is_integer'] = True
+            material['sciblend_unique_values'] = list(unique_values)
+        elif color_range and normalization != 'NONE':
             min_value, max_value = color_range
             if normalization in {'AUTO', 'GLOBAL'}:
                 map_range.inputs['From Min'].default_value = min_value
@@ -352,222 +424,63 @@ def get_material_from_collection(collection):
     return None
 
 
-def update_material_transparency(material, enable, mode, min_val, max_val, invert):
-    """Update or create transparency nodes in the material.
-    
+def update_material_filters(material, filters, enable):
+    """Store filter metadata on the material and ensure gamma connects to BSDF.
+
+    The actual filtering is handled by Geometry Nodes. This function only stores
+    metadata and cleans up any legacy shader-based filter nodes.
+
     Parameters
     ----------
     material : bpy.types.Material
         The material to update.
+    filters : list[dict]
+        List of filter rules, each with keys 'attribute', 'operator', 'value', 'enabled',
+        'display_mode', 'display_color', 'display_material'.
     enable : bool
-        Whether transparency is enabled.
-    mode : str
-        Transparency mode: 'RANGE', 'NAN', or 'BOTH'.
-    min_val : float
-        Minimum value for range mode.
-    max_val : float
-        Maximum value for range mode.
-    invert : bool
-        Whether to invert the transparency mask.
-        
+        Whether filtering is enabled.
+
     Returns
     -------
     bool
-        True if successful, False otherwise.
+        True if successful.
     """
-    print(f"[TRANSPARENCY] Called with enable={enable}, mode={mode}, min={min_val}, max={max_val}, invert={invert}")
-    
     if not material or not material.use_nodes or not material.node_tree:
-        print(f"[TRANSPARENCY] Early return: material checks failed")
         return False
-    
-    print(f"[TRANSPARENCY] Material: {material.name}")
-    
+
     try:
-        material['sciblend_enable_transparency'] = enable
-        material['sciblend_transparency_mode'] = mode
-        material['sciblend_transparency_min'] = min_val
-        material['sciblend_transparency_max'] = max_val
-        material['sciblend_invert_transparency'] = invert
-        
+        material['sciblend_enable_filters'] = enable
+        material['sciblend_filters'] = list(filters)
+
         nodes = material.node_tree.nodes
         links = material.node_tree.links
-        
-        attrib_node = find_attribute_node(material)
-        print(f"[TRANSPARENCY] Attribute node found: {attrib_node}")
-        
+
+        filter_nodes = [n for n in nodes if hasattr(n, 'label') and str(n.label).startswith('SCIBLEND_FILTER_')]
+        for node in filter_nodes:
+            nodes.remove(node)
+
         bsdf_node = None
-        output_node = None
-        
+        gamma_node = None
         for node in nodes:
             if node.type == 'BSDF_PRINCIPLED':
                 bsdf_node = node
-            elif node.type == 'OUTPUT_MATERIAL':
-                output_node = node
-        
-        print(f"[TRANSPARENCY] BSDF node: {bsdf_node}, Output node: {output_node}")
-        
-        if not attrib_node or not bsdf_node or not output_node:
-            print(f"[TRANSPARENCY] Missing required nodes!")
+            elif node.type == 'GAMMA':
+                gamma_node = node
+
+        if not bsdf_node:
             return False
-        
-        transparency_nodes = [n for n in nodes if hasattr(n, 'label') and 'SCIBLEND_TRANSPARENCY' in str(n.label)]
-        print(f"[TRANSPARENCY] Removing {len(transparency_nodes)} old transparency nodes")
-        for node in transparency_nodes:
-            nodes.remove(node)
-        
-        if not enable:
-            print(f"[TRANSPARENCY] Transparency disabled, setting material to OPAQUE")
-            material.blend_method = 'OPAQUE'
-            material.node_tree.update_tag()
-            return True
-        
-        print(f"[TRANSPARENCY] Enabling transparency with mode: {mode}")
-        material.blend_method = 'BLEND'
-        if hasattr(material, 'shadow_method'):
-            material.shadow_method = 'CLIP'
-        
-        base_x = attrib_node.location.x
-        base_y = attrib_node.location.y - 300
-        print(f"[TRANSPARENCY] Base position: ({base_x}, {base_y})")
-        
-        if mode == 'NAN':
-            print(f"[TRANSPARENCY] Creating NAN detection nodes")
-            # NaN detection: NaN != NaN, so we compare value with itself
-            # If EQUAL returns 1, it's NOT NaN. If it returns 0, it IS NaN.
-            is_nan_node = nodes.new(type='ShaderNodeMath')
-            is_nan_node.operation = 'COMPARE'
-            is_nan_node.location = (base_x + 200, base_y)
-            is_nan_node.label = 'SCIBLEND_TRANSPARENCY_NAN_CHECK'
-            is_nan_node.inputs[2].default_value = 0.0001  # epsilon for comparison
-            
-            # Connect the same value to both inputs to compare with itself
-            links.new(attrib_node.outputs[2], is_nan_node.inputs[0])
-            links.new(attrib_node.outputs[2], is_nan_node.inputs[1])
-            
-            # Now invert: if EQUAL=1 (not NaN), we want alpha=1 (opaque)
-            #             if EQUAL=0 (is NaN), we want alpha=0 (transparent)
-            # So the EQUAL result is already what we want for alpha!
-            alpha_socket = is_nan_node.outputs[0]
-            print(f"[TRANSPARENCY] NAN node created: {is_nan_node}")
-            
-        elif mode == 'RANGE':
-            print(f"[TRANSPARENCY] Creating RANGE detection nodes")
-            in_range_low = nodes.new(type='ShaderNodeMath')
-            in_range_low.operation = 'GREATER_THAN'
-            in_range_low.location = (base_x + 200, base_y)
-            in_range_low.label = 'SCIBLEND_TRANSPARENCY_LOW'
-            in_range_low.inputs[1].default_value = min_val
-            
-            in_range_high = nodes.new(type='ShaderNodeMath')
-            in_range_high.operation = 'LESS_THAN'
-            in_range_high.location = (base_x + 200, base_y - 100)
-            in_range_high.label = 'SCIBLEND_TRANSPARENCY_HIGH'
-            in_range_high.inputs[1].default_value = max_val
-            
-            combine_range = nodes.new(type='ShaderNodeMath')
-            combine_range.operation = 'MULTIPLY'
-            combine_range.location = (base_x + 400, base_y - 50)
-            combine_range.label = 'SCIBLEND_TRANSPARENCY_COMBINE'
-            
-            # Invert: if in range (combine=1), we want transparent (alpha=0)
-            invert_range = nodes.new(type='ShaderNodeMath')
-            invert_range.operation = 'SUBTRACT'
-            invert_range.location = (base_x + 600, base_y - 50)
-            invert_range.label = 'SCIBLEND_TRANSPARENCY_INVERT_RANGE'
-            invert_range.inputs[0].default_value = 1.0
-            
-            links.new(attrib_node.outputs[2], in_range_low.inputs[0])
-            links.new(attrib_node.outputs[2], in_range_high.inputs[0])
-            links.new(in_range_low.outputs[0], combine_range.inputs[0])
-            links.new(in_range_high.outputs[0], combine_range.inputs[1])
-            links.new(combine_range.outputs[0], invert_range.inputs[1])
-            
-            alpha_socket = invert_range.outputs[0]
-            print(f"[TRANSPARENCY] RANGE nodes created: low={in_range_low}, high={in_range_high}, combine={combine_range}, invert={invert_range}")
-            
-        else:
-            print(f"[TRANSPARENCY] Creating BOTH (RANGE + NAN) detection nodes")
-            # NaN detection: compare value with itself
-            is_nan_node = nodes.new(type='ShaderNodeMath')
-            is_nan_node.operation = 'COMPARE'
-            is_nan_node.location = (base_x + 200, base_y)
-            is_nan_node.label = 'SCIBLEND_TRANSPARENCY_NAN_CHECK'
-            is_nan_node.inputs[2].default_value = 0.0001  # epsilon for comparison
-            
-            in_range_low = nodes.new(type='ShaderNodeMath')
-            in_range_low.operation = 'GREATER_THAN'
-            in_range_low.location = (base_x + 200, base_y - 150)
-            in_range_low.label = 'SCIBLEND_TRANSPARENCY_LOW'
-            in_range_low.inputs[1].default_value = min_val
-            
-            in_range_high = nodes.new(type='ShaderNodeMath')
-            in_range_high.operation = 'LESS_THAN'
-            in_range_high.location = (base_x + 200, base_y - 250)
-            in_range_high.label = 'SCIBLEND_TRANSPARENCY_HIGH'
-            in_range_high.inputs[1].default_value = max_val
-            
-            combine_range = nodes.new(type='ShaderNodeMath')
-            combine_range.operation = 'MULTIPLY'
-            combine_range.location = (base_x + 400, base_y - 200)
-            combine_range.label = 'SCIBLEND_TRANSPARENCY_COMBINE'
-            
-            combine_all = nodes.new(type='ShaderNodeMath')
-            combine_all.operation = 'MULTIPLY'
-            combine_all.location = (base_x + 600, base_y - 100)
-            combine_all.label = 'SCIBLEND_TRANSPARENCY_FINAL'
-            
-            # Connect NaN check (value compared with itself)
-            links.new(attrib_node.outputs[2], is_nan_node.inputs[0])
-            links.new(attrib_node.outputs[2], is_nan_node.inputs[1])
-            
-            # Connect range check
-            links.new(attrib_node.outputs[2], in_range_low.inputs[0])
-            links.new(attrib_node.outputs[2], in_range_high.inputs[0])
-            links.new(in_range_low.outputs[0], combine_range.inputs[0])
-            links.new(in_range_high.outputs[0], combine_range.inputs[1])
-            
 
-            # Invert range result
-            invert_range = nodes.new(type='ShaderNodeMath')
-            invert_range.operation = 'SUBTRACT'
-            invert_range.location = (base_x + 600, base_y - 200)
-            invert_range.label = 'SCIBLEND_TRANSPARENCY_INVERT_RANGE'
-            invert_range.inputs[0].default_value = 1.0
-            links.new(combine_range.outputs[0], invert_range.inputs[1])
-            
-            # Multiply: opaque only if NOT NaN AND NOT in range
-            links.new(is_nan_node.outputs[0], combine_all.inputs[0])
-            links.new(invert_range.outputs[0], combine_all.inputs[1])
-            
-            alpha_socket = combine_all.outputs[0]
-            print(f"[TRANSPARENCY] BOTH nodes created: nan={is_nan_node}, low={in_range_low}, high={in_range_high}, combine_range={combine_range}, invert_range={invert_range}, combine_all={combine_all}")
-        
-        if invert:
-            print(f"[TRANSPARENCY] Creating invert node")
-            invert_node = nodes.new(type='ShaderNodeMath')
-            invert_node.operation = 'SUBTRACT'
-            invert_node.location = (alpha_socket.node.location.x + 200, alpha_socket.node.location.y)
-            invert_node.label = 'SCIBLEND_TRANSPARENCY_INVERT'
-            invert_node.inputs[0].default_value = 1.0
-            
-            links.new(alpha_socket, invert_node.inputs[1])
-            alpha_socket = invert_node.outputs[0]
-        
-        print(f"[TRANSPARENCY] Connecting alpha to BSDF")
-        links.new(alpha_socket, bsdf_node.inputs['Alpha'])
-        
-        print(f"[TRANSPARENCY] Updating material node tree")
+        material.blend_method = 'OPAQUE'
+        if gamma_node:
+            base_color_links = [l for l in links if l.to_socket == bsdf_node.inputs['Base Color']]
+            for l in base_color_links:
+                links.remove(l)
+            links.new(gamma_node.outputs[0], bsdf_node.inputs['Base Color'])
+
         material.node_tree.update_tag()
-        
-        print(f"[TRANSPARENCY] Success!")
-        logger.info("Updated transparency for material %s", material.name)
+        logger.info("Updated filter metadata for material %s", material.name)
         return True
-        
-    except Exception as e:
-        print(f"[TRANSPARENCY] Exception occurred: {e}")
-        import traceback
-        traceback.print_exc()
-        logger.error("Failed to update transparency: %s", e)
-        return False
 
+    except Exception as e:
+        logger.error("Failed to update filter metadata: %s", e)
+        return False

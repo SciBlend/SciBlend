@@ -117,6 +117,20 @@ class MATERIAL_PT_shader_generator(Panel):
                 col.prop(settings, "interpolation", text="Interpolation")
                 col.prop(settings, "gamma", text="Gamma")
                 col.prop(settings, "attribute_name", text="Attribute")
+                
+                is_discrete = False
+                unique_count = 0
+                if mat and mat.get('sciblend_is_integer'):
+                    unique_vals = mat.get('sciblend_unique_values', [])
+                    if unique_vals:
+                        is_discrete = True
+                        unique_count = len(unique_vals)
+                
+                if is_discrete:
+                    row = col.row()
+                    row.alert = False
+                    row.label(text=f"Discrete mode ({unique_count} values)", icon='LINENUMBERS_ON')
+                
                 col.prop(settings, "normalization", text="Normalization")
                 
                 layout.separator()
@@ -129,23 +143,40 @@ class MATERIAL_PT_shader_generator(Panel):
                 
                 layout.separator()
                 
-                layout.label(text="Transparency", icon='SHADING_RENDERED')
+                layout.label(text="Attribute Filters", icon='FILTER')
                 box = layout.box()
                 col = box.column(align=True)
-                col.prop(settings, "enable_transparency", text="Enable Transparency")
+                col.prop(settings, "enable_filters", text="Enable Filters")
                 
-                if settings.enable_transparency:
+                if settings.enable_filters:
                     col.separator()
-                    col.prop(settings, "transparency_mode", text="Mode")
+                    row = col.row(align=True)
+                    row.operator("shader.add_filter", text="Add", icon='ADD')
+                    row.operator("shader.remove_filter", text="Remove", icon='REMOVE')
+                    row.operator("shader.move_filter_up", text="", icon='TRIA_UP')
+                    row.operator("shader.move_filter_down", text="", icon='TRIA_DOWN')
                     
-                    if settings.transparency_mode in ['RANGE', 'BOTH']:
-                        col.separator()
-                        row = col.row(align=True)
-                        row.prop(settings, "transparency_min", text="Min")
-                        row.prop(settings, "transparency_max", text="Max")
-                    
-                    col.separator()
-                    col.prop(settings, "invert_transparency", text="Invert Mask")
+                    if hasattr(settings, 'attribute_filters') and len(settings.attribute_filters) > 0:
+                        col.prop(settings, "active_filter_index", text="Selected Rule")
+                        
+                        for i, f in enumerate(settings.attribute_filters):
+                            is_active = (i == settings.active_filter_index)
+                            filter_box = col.box()
+                            
+                            row1 = filter_box.row(align=True)
+                            row1.label(text=f"#{i + 1}", icon='LAYER_ACTIVE' if is_active else 'LAYER_USED')
+                            row1.prop(f, "attribute_name", text="")
+                            row1.prop(f, "operator", text="")
+                            if f.operator not in ('IS_NAN', 'IS_NOT_NAN'):
+                                row1.prop(f, "value", text="")
+                            row1.prop(f, "enabled", text="", icon='CHECKBOX_HLT' if f.enabled else 'CHECKBOX_DEHLT')
+                            
+                            row2 = filter_box.row(align=True)
+                            row2.prop(f, "display_mode", text="")
+                            if f.display_mode == 'SOLID_COLOR':
+                                row2.prop(f, "display_color", text="")
+                            elif f.display_mode == 'MATERIAL':
+                                row2.prop_search(f, "display_material", bpy.data, "materials", text="")
             
             layout.separator()
             

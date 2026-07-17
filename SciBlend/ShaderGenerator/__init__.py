@@ -4,6 +4,7 @@ from bpy.props import CollectionProperty
 
 from .properties.colorramp import ColorRampColor
 from .properties.collection_shader_item import CollectionShaderItem
+from .properties.attribute_filter_item import AttributeFilterItem
 from .properties.settings import ShaderGeneratorSettings
 from .operators.colorramp import (
     COLORRAMP_OT_add_color,
@@ -22,6 +23,12 @@ from .operators.collection_operators import (
     SHADER_OT_remove_shader,
     SHADER_OT_apply_changes,
 )
+from .operators.filter_operators import (
+    SHADER_OT_add_filter,
+    SHADER_OT_remove_filter,
+    SHADER_OT_move_filter_up,
+    SHADER_OT_move_filter_down,
+)
 from .ui.panel import MATERIAL_PT_shader_generator
 from .ui.collection_list import SHADER_UL_collection_list
 
@@ -30,6 +37,7 @@ logger = logging.getLogger(__name__)
 __all__ = (
     'ColorRampColor',
     'CollectionShaderItem',
+    'AttributeFilterItem',
     'ShaderGeneratorSettings',
     'COLORRAMP_OT_add_color',
     'COLORRAMP_OT_remove_color',
@@ -41,6 +49,10 @@ __all__ = (
     'SHADER_OT_refresh_collections',
     'SHADER_OT_remove_shader',
     'SHADER_OT_apply_changes',
+    'SHADER_OT_add_filter',
+    'SHADER_OT_remove_filter',
+    'SHADER_OT_move_filter_up',
+    'SHADER_OT_move_filter_down',
     'MATERIAL_PT_shader_generator',
     'SHADER_UL_collection_list',
     'create_colormap_material',
@@ -51,7 +63,15 @@ def register():
     """Register Shader Generator classes and attach scene properties."""
     bpy.utils.register_class(ColorRampColor)
     bpy.utils.register_class(CollectionShaderItem)
+    bpy.utils.register_class(AttributeFilterItem)
     bpy.utils.register_class(ShaderGeneratorSettings)
+    
+    ShaderGeneratorSettings.attribute_filters = CollectionProperty(
+        type=AttributeFilterItem,
+        name="Attribute Filters",
+        description="List of filter rules for conditional coloring",
+    )
+    
     bpy.types.Scene.custom_colorramp = CollectionProperty(type=ColorRampColor)
     bpy.types.Scene.shader_generator_settings = bpy.props.PointerProperty(type=ShaderGeneratorSettings)
     bpy.utils.register_class(COLORRAMP_OT_add_color)
@@ -64,6 +84,10 @@ def register():
     bpy.utils.register_class(SHADER_OT_refresh_collections)
     bpy.utils.register_class(SHADER_OT_remove_shader)
     bpy.utils.register_class(SHADER_OT_apply_changes)
+    bpy.utils.register_class(SHADER_OT_add_filter)
+    bpy.utils.register_class(SHADER_OT_remove_filter)
+    bpy.utils.register_class(SHADER_OT_move_filter_up)
+    bpy.utils.register_class(SHADER_OT_move_filter_down)
     bpy.utils.register_class(SHADER_UL_collection_list)
     bpy.utils.register_class(MATERIAL_PT_shader_generator)
     
@@ -81,6 +105,10 @@ def unregister():
     
     bpy.utils.unregister_class(MATERIAL_PT_shader_generator)
     bpy.utils.unregister_class(SHADER_UL_collection_list)
+    bpy.utils.unregister_class(SHADER_OT_move_filter_down)
+    bpy.utils.unregister_class(SHADER_OT_move_filter_up)
+    bpy.utils.unregister_class(SHADER_OT_remove_filter)
+    bpy.utils.unregister_class(SHADER_OT_add_filter)
     bpy.utils.unregister_class(SHADER_OT_apply_changes)
     bpy.utils.unregister_class(SHADER_OT_remove_shader)
     bpy.utils.unregister_class(SHADER_OT_refresh_collections)
@@ -97,7 +125,11 @@ def unregister():
     if hasattr(bpy.types.Scene, 'custom_colorramp'):
         del bpy.types.Scene.custom_colorramp
     
+    if hasattr(ShaderGeneratorSettings, 'attribute_filters'):
+        del ShaderGeneratorSettings.attribute_filters
+    
     bpy.utils.unregister_class(ShaderGeneratorSettings)
+    bpy.utils.unregister_class(AttributeFilterItem)
     bpy.utils.unregister_class(CollectionShaderItem)
     bpy.utils.unregister_class(ColorRampColor)
 

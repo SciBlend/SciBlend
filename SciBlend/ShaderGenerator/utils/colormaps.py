@@ -99,4 +99,46 @@ def interpolate_colormap(colors, num_points=32):
     for idx, pos in enumerate(new_positions):
         new_colors.append({'position': float(pos), 'color': (float(r_interp[idx]), float(g_interp[idx]), float(b_interp[idx]))})
 
-    return new_colors 
+    return new_colors
+
+
+def sample_colormap_colors(colormap_name, n, custom_colormap=None):
+    """Sample n evenly-spaced colors from a colormap.
+
+    Parameters
+    ----------
+    colormap_name : str
+        Name of the colormap or 'CUSTOM'.
+    n : int
+        Number of colors to sample (must be >= 1).
+    custom_colormap : list[dict] | None
+        Custom colormap data when colormap_name is 'CUSTOM'.
+
+    Returns
+    -------
+    list[tuple]
+        List of n RGB tuples sampled evenly across the colormap range.
+    """
+    if n < 1:
+        return []
+
+    if colormap_name == "CUSTOM":
+        colors = custom_colormap if custom_colormap else []
+    else:
+        colors = COLORMAPS.get(colormap_name, {}).get('colors', [])
+
+    if not colors:
+        return [(0.5, 0.5, 0.5)] * n
+
+    resampled = interpolate_colormap(colors, max(n, 2))
+
+    if n == 1:
+        return [resampled[0]['color']]
+
+    step = (len(resampled) - 1) / (n - 1) if n > 1 else 0
+    result = []
+    for i in range(n):
+        idx = int(round(i * step))
+        idx = min(idx, len(resampled) - 1)
+        result.append(resampled[idx]['color'])
+    return result 

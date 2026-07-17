@@ -179,4 +179,77 @@ def get_color_range(obj, attribute_name, normalization='AUTO'):
     if not values:
         return (0, 1)
 
-    return (min(values), max(values)) 
+    return (min(values), max(values))
+
+
+def get_attribute_data_type(obj, attribute_name):
+    """Return the data_type string for a named attribute on a mesh object.
+
+    Parameters
+    ----------
+    obj : bpy.types.Object
+        The mesh object to query.
+    attribute_name : str
+        The name of the attribute.
+
+    Returns
+    -------
+    str | None
+        The data_type string ('FLOAT', 'INT', 'INT8', 'INT32', etc.) or None if not found.
+    """
+    if getattr(obj, 'type', None) != 'MESH':
+        return None
+    mesh = getattr(obj, 'data', None)
+    if mesh is None or not hasattr(mesh, 'attributes'):
+        return None
+    attr = mesh.attributes.get(attribute_name)
+    if attr is None:
+        return None
+    return attr.data_type
+
+
+def get_unique_integer_values(obj, attribute_name, normalization='AUTO'):
+    """Collect all unique integer values from an integer attribute.
+
+    Parameters
+    ----------
+    obj : bpy.types.Object
+        The mesh object to query for AUTO normalization.
+    attribute_name : str
+        The name of the integer attribute.
+    normalization : str
+        One of 'AUTO', 'GLOBAL', or 'NONE'. When 'GLOBAL', collects values
+        from all mesh objects that have the attribute.
+
+    Returns
+    -------
+    list[int]
+        Sorted list of unique integer values. Returns an empty list if the
+        attribute is not an integer type or does not exist.
+    """
+    unique_values = set()
+
+    def _collect_from_object(o):
+        if getattr(o, 'type', None) != 'MESH':
+            return
+        mesh = getattr(o, 'data', None)
+        if mesh is None or not hasattr(mesh, 'attributes'):
+            return
+        attr = mesh.attributes.get(attribute_name)
+        if attr is None:
+            return
+        if attr.data_type not in {'INT', 'INT8', 'INT32'}:
+            return
+        try:
+            for data in attr.data:
+                unique_values.add(int(data.value))
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    if normalization == 'GLOBAL':
+        for o in bpy.data.objects:
+            _collect_from_object(o)
+    else:
+        _collect_from_object(obj)
+
+    return sorted(unique_values) 

@@ -1,10 +1,9 @@
 import bpy
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty, EnumProperty, IntProperty, CollectionProperty, BoolProperty
-from .collection_shader_item import CollectionShaderItem
+from bpy.props import FloatProperty, EnumProperty, IntProperty, BoolProperty, FloatVectorProperty
 
 _loading_material_settings = False
-_updating_transparency = False
+_updating_filters = False
 
 
 def _get_active_collection_material(context):
@@ -97,8 +96,10 @@ def _update_colormap(self, context):
                 for color in scene.custom_colorramp
             ]
     
+    unique_values = list(mat.get('sciblend_unique_values', [])) if mat.get('sciblend_is_integer') else None
+    
     try:
-        update_material_colormap(mat, self.colormap, custom_colormap)
+        update_material_colormap(mat, self.colormap, custom_colormap, unique_values)
     except Exception:
         pass
 
@@ -113,9 +114,11 @@ def _update_interpolation(self, context):
     if not mat:
         return
         
+    unique_values = list(mat.get('sciblend_unique_values', [])) if mat.get('sciblend_is_integer') else None
+        
     from ..utils.material_updater import update_material_interpolation
     try:
-        update_material_interpolation(mat, self.interpolation)
+        update_material_interpolation(mat, self.interpolation, unique_values)
     except Exception:
         pass
 
@@ -199,42 +202,62 @@ def _update_normalization(self, context):
         pass
 
 
-def _update_transparency(self, context):
-    """Update transparency settings in the material."""
-    global _loading_material_settings, _updating_transparency
+def _update_filters(self, context):
+    """Update filter settings in the material and rebuild Geometry Nodes."""
+    global _loading_material_settings, _updating_filters
     
-    print(f"[SETTINGS] _update_transparency called. loading={_loading_material_settings}, updating={_updating_transparency}")
-    
-    if _loading_material_settings or _updating_transparency:
-        print(f"[SETTINGS] Skipping due to flags")
+    if _loading_material_settings or _updating_filters:
         return
     
-    _updating_transparency = True
+    _updating_filters = True
     try:
-        mat = _get_active_collection_material(context)
-        print(f"[SETTINGS] Got material: {mat}")
-        
-        if not mat:
-            print(f"[SETTINGS] No material found!")
+        settings = context.scene.shader_generator_settings
+        if not settings or not settings.collection_shaders:
             return
         
-        from ..utils.material_updater import update_material_transparency
-        print(f"[SETTINGS] Calling update_material_transparency...")
-        result = update_material_transparency(
-            mat, 
-            self.enable_transparency,
-            self.transparency_mode,
-            self.transparency_min,
-            self.transparency_max,
-            self.invert_transparency
+        if settings.active_collection_index < 0 or settings.active_collection_index >= len(settings.collection_shaders):
+            return
+        
+        item = settings.collection_shaders[settings.active_collection_index]
+        coll = bpy.data.collections.get(item.collection_name)
+        if not coll:
+            return
+        
+        mat = _get_active_collection_material(context)
+        
+        from ..utils.material_updater import update_material_filters
+        from ..utils.filter_geometry_nodes import build_filter_geometry_nodes
+        
+        filters_data = []
+        if hasattr(settings, 'attribute_filters'):
+            for f in settings.attribute_filters:
+                filters_data.append({
+                    'attribute': f.attribute_name,
+                    'operator': f.operator,
+                    'value': f.value,
+                    'enabled': f.enabled,
+                    'display_mode': f.display_mode,
+                    'display_color': tuple(f.display_color),
+                    'display_material': f.display_material,
+                })
+        
+        if mat:
+            update_material_filters(
+                mat,
+                filters_data,
+                settings.enable_filters,
+            )
+        
+        build_filter_geometry_nodes(
+            coll,
+            mat,
+            filters_data,
+            settings.enable_filters,
         )
-        print(f"[SETTINGS] Result: {result}")
-    except Exception as e:
-        print(f"[SETTINGS] Exception: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        pass
     finally:
-        _updating_transparency = False
+        _updating_filters = False
 
 
 def _on_collection_index_changed(self, context):
@@ -307,11 +330,25 @@ def _on_collection_index_changed(self, context):
         except Exception:
             pass
         try:
-            settings.enable_transparency = mat_settings.get('enable_transparency', False)
-            settings.transparency_mode = mat_settings.get('transparency_mode', 'RANGE')
-            settings.transparency_min = mat_settings.get('transparency_min', 0.0)
-            settings.transparency_max = mat_settings.get('transparency_max', 0.1)
-            settings.invert_transparency = mat_settings.get('invert_transparency', False)
+            settings.enable_filters = mat_settings.get('enable_filters', False)
+            if hasattr(settings, 'attribute_filters'):
+                settings.attribute_filters.clear()
+                for f in mat_settings.get('filters', []):
+                    new_filter = settings.attribute_filters.add()
+                    attr_name = f.get('attribute', '')
+                    if attr_name:
+                        try:
+                            new_filter.attribute_name = attr_name
+                        except TypeError:
+                            pass
+                    new_filter.operator = f.get('operator', 'EQUAL')
+                    new_filter.value = f.get('value', 0.0)
+                    new_filter.enabled = f.get('enabled', True)
+                    new_filter.display_mode = f.get('display_mode', 'SOLID_COLOR')
+                    display_color = f.get('display_color', (0.8, 0.2, 0.2))
+                    new_filter.display_color = display_color
+                    new_filter.display_material = f.get('display_material', '')
+            settings.active_filter_index = -1
         except Exception:
             pass
         finally:
@@ -391,44 +428,17 @@ class ShaderGeneratorSettings(PropertyGroup):
         update=_update_normalization,
     )
     
-    enable_transparency: BoolProperty(
-        name="Enable Transparency",
-        description="Enable transparency based on attribute values",
+    enable_filters: BoolProperty(
+        name="Enable Filters",
+        description="Enable attribute-based filtering for vertex coloring",
         default=False,
-        update=_update_transparency,
+        update=_update_filters,
     )
     
-    transparency_mode: EnumProperty(
-        name="Transparency Mode",
-        description="Choose how to determine transparency",
-        items=[
-            ('RANGE', "Value Range", "Make values within a range transparent"),
-            ('NAN', "NaN/Invalid", "Make NaN and invalid values transparent"),
-            ('BOTH', "Range + NaN", "Combine both methods"),
-        ],
-        default='RANGE',
-        update=_update_transparency,
-    )
-    
-    transparency_min: FloatProperty(
-        name="Transparency Min",
-        description="Minimum value for transparency range",
-        default=0.0,
-        update=_update_transparency,
-    )
-    
-    transparency_max: FloatProperty(
-        name="Transparency Max",
-        description="Maximum value for transparency range",
-        default=0.1,
-        update=_update_transparency,
-    )
-    
-    invert_transparency: BoolProperty(
-        name="Invert Transparency",
-        description="Invert the transparency mask",
-        default=False,
-        update=_update_transparency,
+    active_filter_index: IntProperty(
+        name="Active Filter",
+        description="Index of the active filter in the list",
+        default=-1,
     )
 
 

@@ -121,6 +121,7 @@ try:
     from .ShaderGenerator import (
         ColorRampColor,
         CollectionShaderItem,
+        AttributeFilterItem,
         ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
@@ -132,6 +133,10 @@ try:
         SHADER_OT_refresh_collections,
         SHADER_OT_remove_shader,
         SHADER_OT_apply_changes,
+        SHADER_OT_add_filter,
+        SHADER_OT_remove_filter,
+        SHADER_OT_move_filter_up,
+        SHADER_OT_move_filter_down,
         SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
@@ -141,6 +146,7 @@ try:
     shader_classes = (
         ColorRampColor,
         CollectionShaderItem,
+        AttributeFilterItem,
         ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
@@ -152,6 +158,10 @@ try:
         SHADER_OT_refresh_collections,
         SHADER_OT_remove_shader,
         SHADER_OT_apply_changes,
+        SHADER_OT_add_filter,
+        SHADER_OT_remove_filter,
+        SHADER_OT_move_filter_up,
+        SHADER_OT_move_filter_down,
         SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
@@ -259,6 +269,7 @@ try:
     from .ShaderGenerator import (
         ColorRampColor,
         CollectionShaderItem,
+        AttributeFilterItem,
         ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
@@ -270,6 +281,10 @@ try:
         SHADER_OT_refresh_collections,
         SHADER_OT_remove_shader,
         SHADER_OT_apply_changes,
+        SHADER_OT_add_filter,
+        SHADER_OT_remove_filter,
+        SHADER_OT_move_filter_up,
+        SHADER_OT_move_filter_down,
         SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
@@ -279,6 +294,7 @@ try:
     shader_classes = (
         ColorRampColor,
         CollectionShaderItem,
+        AttributeFilterItem,
         ShaderGeneratorSettings,
         COLORRAMP_OT_add_color,
         COLORRAMP_OT_remove_color,
@@ -290,6 +306,10 @@ try:
         SHADER_OT_refresh_collections,
         SHADER_OT_remove_shader,
         SHADER_OT_apply_changes,
+        SHADER_OT_add_filter,
+        SHADER_OT_remove_filter,
+        SHADER_OT_move_filter_up,
+        SHADER_OT_move_filter_down,
         SHADER_UL_collection_list,
         MATERIAL_PT_shader_generator,
     )
@@ -855,6 +875,11 @@ def register():
                     name="Collection Shaders",
                     description="Track collection-material associations",
                 )
+                cls.attribute_filters = bpy.props.CollectionProperty(
+                    type=AttributeFilterItem,
+                    name="Attribute Filters",
+                    description="List of filter rules for conditional coloring",
+                )
         except ValueError:
             try:
                 bpy.utils.unregister_class(cls)
@@ -866,6 +891,11 @@ def register():
                     type=CollectionShaderItem,
                     name="Collection Shaders",
                     description="Track collection-material associations",
+                )
+                cls.attribute_filters = bpy.props.CollectionProperty(
+                    type=AttributeFilterItem,
+                    name="Attribute Filters",
+                    description="List of filter rules for conditional coloring",
                 )
 
     if SCIBLENDNODES_AVAILABLE:
@@ -985,11 +1015,17 @@ def unregister():
 
     for cls in reversed(classes):
         try:
-            if SHADER_AVAILABLE and cls.__name__ == 'ShaderGeneratorSettings' and hasattr(cls, 'collection_shaders'):
-                try:
-                    del cls.collection_shaders
-                except Exception:
-                    pass
+            if SHADER_AVAILABLE and cls.__name__ == 'ShaderGeneratorSettings':
+                if hasattr(cls, 'collection_shaders'):
+                    try:
+                        del cls.collection_shaders
+                    except Exception:
+                        pass
+                if hasattr(cls, 'attribute_filters'):
+                    try:
+                        del cls.attribute_filters
+                    except Exception:
+                        pass
             bpy.utils.unregister_class(cls)
         except Exception:
             pass

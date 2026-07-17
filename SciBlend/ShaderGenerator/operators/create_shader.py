@@ -2,13 +2,13 @@ import bpy
 import logging
 from bpy.types import Operator
 from bpy.props import EnumProperty, StringProperty, BoolProperty, FloatProperty
-from ..utils.colormaps import COLORMAPS, interpolate_colormap, get_colormap_items
-from ..utils.attributes import get_color_range, get_attribute_items
+from ..utils.colormaps import COLORMAPS, interpolate_colormap, get_colormap_items, sample_colormap_colors
+from ..utils.attributes import get_color_range, get_attribute_items, get_attribute_data_type, get_unique_integer_values
 
 logger = logging.getLogger(__name__)
 
 
-def create_colormap_material(colormap_name, interpolation, gamma, custom_colormap=None, color_range=None, normalization='AUTO', attribute_name="Col"):
+def create_colormap_material(colormap_name, interpolation, gamma, custom_colormap=None, color_range=None, normalization='AUTO', attribute_name="Col", unique_values=None):
     """Create a Blender material that maps a mesh attribute through a ColorRamp to Base Color.
 
     Parameters
@@ -27,6 +27,10 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
         One of 'AUTO', 'GLOBAL', 'NONE'.
     attribute_name : str
         Name of the mesh attribute to map from.
+    unique_values : list[int] | None
+        Sorted list of unique integer values for discrete mode. When provided
+        and len <= 32, the ColorRamp uses CONSTANT interpolation with one stop
+        per unique value.
 
     Returns
     -------
@@ -35,12 +39,19 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     """
     logger.info("Creating material with colormap: %s", colormap_name)
 
+    is_discrete = unique_values is not None and 1 <= len(unique_values) <= 32
+
     mat = bpy.data.materials.new(name=f"Shader_Generator_{colormap_name}")
     mat.use_nodes = True
     try:
         mat["sciblend_colormap"] = colormap_name
         mat["sciblend_attribute"] = attribute_name
         mat["sciblend_normalization"] = normalization
+        if is_discrete:
+            mat["sciblend_is_integer"] = True
+            mat["sciblend_unique_values"] = list(unique_values)
+        else:
+            mat["sciblend_is_integer"] = False
     except Exception:
         pass
 
@@ -60,7 +71,17 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
     except Exception:
         pass
 
-    if color_range and normalization != 'NONE':
+    if is_discrete:
+        n = len(unique_values)
+        v0 = unique_values[0]
+        vn = unique_values[-1]
+        if n == 1:
+            map_range.inputs['From Min'].default_value = float(v0)
+            map_range.inputs['From Max'].default_value = float(v0 + 1)
+        else:
+            map_range.inputs['From Min'].default_value = float(v0)
+            map_range.inputs['From Max'].default_value = float(vn)
+    elif color_range and normalization != 'NONE':
         min_value, max_value = color_range
         if normalization in {'AUTO', 'GLOBAL'}:
             map_range.inputs['From Min'].default_value = min_value
@@ -75,29 +96,48 @@ def create_colormap_material(colormap_name, interpolation, gamma, custom_colorma
 
     node_colorramp = nodes.new(type='ShaderNodeValToRGB')
     node_colorramp.location = (-200, 0)
-    node_colorramp.color_ramp.interpolation = interpolation
     try:
         node_colorramp.label = str(colormap_name)
     except Exception:
         pass
 
-    if colormap_name == "CUSTOM":
-        colors = custom_colormap
-    else:
-        colors = COLORMAPS[colormap_name]['colors']
-
-    if len(colors) != 32:
-        colors = interpolate_colormap(colors, 32)
-
     for i in range(len(node_colorramp.color_ramp.elements) - 1, 0, -1):
         node_colorramp.color_ramp.elements.remove(node_colorramp.color_ramp.elements[i])
 
-    for i, color_data in enumerate(colors):
-        if i == 0:
-            elem = node_colorramp.color_ramp.elements[0]
+    if is_discrete:
+        node_colorramp.color_ramp.interpolation = 'CONSTANT'
+        n = len(unique_values)
+        v0 = unique_values[0]
+        vn = unique_values[-1]
+        sampled_colors = sample_colormap_colors(colormap_name, n, custom_colormap)
+
+        for i, val in enumerate(unique_values):
+            if n == 1:
+                pos = 0.0
+            else:
+                pos = (val - v0) / (vn - v0)
+            if i == 0:
+                elem = node_colorramp.color_ramp.elements[0]
+                elem.position = pos
+            else:
+                elem = node_colorramp.color_ramp.elements.new(pos)
+            elem.color = sampled_colors[i] + (1.0,)
+    else:
+        node_colorramp.color_ramp.interpolation = interpolation
+        if colormap_name == "CUSTOM":
+            colors = custom_colormap
         else:
-            elem = node_colorramp.color_ramp.elements.new(color_data['position'])
-        elem.color = color_data['color'] + (1.0,)
+            colors = COLORMAPS[colormap_name]['colors']
+
+        if len(colors) != 32:
+            colors = interpolate_colormap(colors, 32)
+
+        for i, color_data in enumerate(colors):
+            if i == 0:
+                elem = node_colorramp.color_ramp.elements[0]
+            else:
+                elem = node_colorramp.color_ramp.elements.new(color_data['position'])
+            elem.color = color_data['color'] + (1.0,)
 
     node_gamma = nodes.new(type='ShaderNodeGamma')
     node_gamma.inputs[1].default_value = gamma
@@ -224,13 +264,23 @@ class MATERIAL_OT_create_shader(Operator):
             selected_attr = items[0][0] if items else "Col"
             
         color_range = None
+        unique_values = None
+        reference_obj = None
         for obj in coll.objects:
             if obj.type == 'MESH':
+                reference_obj = obj
                 try:
                     color_range = get_color_range(obj, selected_attr, settings.normalization)
-                    break
                 except Exception:
                     pass
+                break
+
+        if reference_obj:
+            attr_type = get_attribute_data_type(reference_obj, selected_attr)
+            if attr_type in {'INT', 'INT8', 'INT32'}:
+                unique_values = get_unique_integer_values(reference_obj, selected_attr, settings.normalization)
+                if len(unique_values) > 32:
+                    unique_values = None
 
         custom_colormap = None
         if settings.colormap == "CUSTOM":
@@ -255,21 +305,31 @@ class MATERIAL_OT_create_shader(Operator):
                 update_material_gamma,
                 update_material_attribute,
                 update_material_normalization,
-                update_material_transparency,
+                update_material_filters,
             )
             
-            update_material_colormap(mat, settings.colormap, custom_colormap)
-            update_material_interpolation(mat, settings.interpolation)
+            update_material_colormap(mat, settings.colormap, custom_colormap, unique_values)
+            update_material_interpolation(mat, settings.interpolation, unique_values)
             update_material_gamma(mat, settings.gamma)
             update_material_attribute(mat, selected_attr)
-            update_material_normalization(mat, settings.normalization, color_range)
-            update_material_transparency(
+            update_material_normalization(mat, settings.normalization, color_range, unique_values)
+            
+            filters_data = []
+            if hasattr(settings, 'attribute_filters'):
+                for f in settings.attribute_filters:
+                    filters_data.append({
+                        'attribute': f.attribute_name,
+                        'operator': f.operator,
+                        'value': f.value,
+                        'enabled': f.enabled,
+                        'display_mode': f.display_mode,
+                        'display_color': tuple(f.display_color),
+                        'display_material': f.display_material,
+                    })
+            update_material_filters(
                 mat,
-                settings.enable_transparency,
-                settings.transparency_mode,
-                settings.transparency_min,
-                settings.transparency_max,
-                settings.invert_transparency
+                filters_data,
+                settings.enable_filters,
             )
             
             action = "Updated"
@@ -282,18 +342,29 @@ class MATERIAL_OT_create_shader(Operator):
                 color_range=color_range,
                 normalization=settings.normalization,
                 attribute_name=selected_attr,
+                unique_values=unique_values,
             )
             
             mat.name = f"Shader_{item.collection_name}"
             
-            from ..utils.material_updater import update_material_transparency
-            update_material_transparency(
+            from ..utils.material_updater import update_material_filters
+            
+            filters_data = []
+            if hasattr(settings, 'attribute_filters'):
+                for f in settings.attribute_filters:
+                    filters_data.append({
+                        'attribute': f.attribute_name,
+                        'operator': f.operator,
+                        'value': f.value,
+                        'enabled': f.enabled,
+                        'display_mode': f.display_mode,
+                        'display_color': tuple(f.display_color),
+                        'display_material': f.display_material,
+                    })
+            update_material_filters(
                 mat,
-                settings.enable_transparency,
-                settings.transparency_mode,
-                settings.transparency_min,
-                settings.transparency_max,
-                settings.invert_transparency
+                filters_data,
+                settings.enable_filters,
             )
             
             item.material_name = mat.name
@@ -334,6 +405,14 @@ class MATERIAL_OT_create_shader(Operator):
                             update_set_material_nodes(modifier.node_group)
 
         _apply_to_objects(list(coll.objects))
+
+        from ..utils.filter_geometry_nodes import build_filter_geometry_nodes
+        build_filter_geometry_nodes(
+            coll,
+            mat,
+            filters_data,
+            settings.enable_filters,
+        )
 
         try:
             from ..utils.nodes import find_shader_map_range_node
