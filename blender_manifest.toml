@@ -78,3 +78,20 @@ wheels = [
   "./wheels/vtk-9.4.2-cp313-cp313-win_amd64.whl",
   "./wheels/zipp-3.23.0-py3-none-any.whl",
 ]
+
+[build]
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/.git/",
+  "*.zip",
+  "/dist/",
+  "/.github/",
+  "/constraints/",
+  "/scripts/",
+  "/migration-report/",
+  "/images/",
+  "/Paraview Macros/",
+  "/.gitignore",
+  "/README.md",
+  "/AGENTS.md",
+]

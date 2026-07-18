@@ -44,6 +44,24 @@ jobs:
           done
           ls -lh wheels || true
 
+      - name: Prune wheels not referenced by the manifest
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, tomllib
+          with open("blender_manifest.toml", "rb") as f:
+              manifest = tomllib.load(f)
+          keep = {os.path.basename(p) for p in manifest.get("wheels", [])}
+          removed = 0
+          for name in os.listdir("wheels"):
+              if name.endswith(".whl") and name not in keep:
+                  os.remove(os.path.join("wheels", name))
+                  removed += 1
+                  print("pruned:", name)
+          print(f"kept {len(keep)} manifest wheels, pruned {removed} extras")
+          PY
+          ls -lh wheels || true
+
       - name: Download Blender 5.2
         run: |
           set -euo pipefail
