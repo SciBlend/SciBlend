@@ -8,6 +8,7 @@ from bpy.types import Operator
 from ..utils.compositor_utils import update_legend_position_in_compositor, update_legend_scale_in_compositor
 from ..utils.color_utils import load_colormaps, interpolate_color
 from ..utils.group_utils import create_or_update_legend_group
+from ...compat import get_scene_compositor_tree, get_compositor_output_node, alpha_over_sockets
 
 _running_overlay = False
 
@@ -499,15 +500,14 @@ class PNGOverlayOperator(Operator):
                                             settings.legend_label_padding,
                                             settings.legend_label_offset_pct)
 
-            scene.use_nodes = True
-            tree = scene.node_tree
+            tree = get_scene_compositor_tree(scene, create=True)
 
             nodegroup = create_or_update_legend_group(tmpname)
 
             tree.nodes.clear()
 
             render_layers = tree.nodes.new('CompositorNodeRLayers')
-            composite = tree.nodes.new('CompositorNodeComposite')
+            composite, composite_input = get_compositor_output_node(tree, create=True)
             alpha_over = tree.nodes.new('CompositorNodeAlphaOver')
             group_node = tree.nodes.new('CompositorNodeGroup')
             group_node.node_tree = nodegroup
@@ -516,11 +516,14 @@ class PNGOverlayOperator(Operator):
             render_layers.location = (0, 0)
             group_node.location = (300, 0)
             alpha_over.location = (600, 0)
-            composite.location = (800, 0)
+            if composite is not None:
+                composite.location = (800, 0)
 
-            tree.links.new(render_layers.outputs["Image"], alpha_over.inputs[1])
-            tree.links.new(group_node.outputs["Image"], alpha_over.inputs[2])
-            tree.links.new(alpha_over.outputs["Image"], composite.inputs["Image"]) 
+            ao_bg, ao_fg, _ao_fac = alpha_over_sockets(alpha_over)
+            tree.links.new(render_layers.outputs["Image"], ao_bg)
+            tree.links.new(group_node.outputs["Image"], ao_fg)
+            if composite_input is not None:
+                tree.links.new(alpha_over.outputs["Image"], composite_input)
 
             render_size_x = scene.render.resolution_x
             render_size_y = scene.render.resolution_y

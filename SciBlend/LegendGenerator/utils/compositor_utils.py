@@ -1,10 +1,17 @@
 import bpy
 
+from ...compat import (
+    get_scene_compositor_tree,
+    set_compositor_scale,
+    get_compositor_scale_mode,
+    set_translate_node,
+)
+
 
 def update_legend_position_in_compositor(context):
     scene = context.scene
     settings = scene.legend_settings
-    tree = scene.node_tree
+    tree = get_scene_compositor_tree(scene)
     
     if tree is None:
         return
@@ -36,14 +43,13 @@ def update_legend_position_in_compositor(context):
     if translate_node is None:
         return
 
-    translate_node.inputs[1].default_value = tx
-    translate_node.inputs[2].default_value = ty
+    set_translate_node(translate_node, x=tx, y=ty)
 
 
 def update_legend_scale_in_compositor(context):
     scene = context.scene
     settings = scene.legend_settings
-    tree = scene.node_tree
+    tree = get_scene_compositor_tree(scene)
     
     if tree is None:
         return
@@ -74,7 +80,7 @@ def update_legend_scale_in_compositor(context):
     scale_legend_node = None
     for node in tree.nodes:
         if node.type == 'SCALE':
-            if node.space == 'RELATIVE':
+            if get_compositor_scale_mode(node) == 'Relative':
                 scale_legend_node = node
             else:
                 scale_size_node = node
@@ -82,12 +88,8 @@ def update_legend_scale_in_compositor(context):
     if scale_size_node is None or scale_legend_node is None:
         return
 
-    if scale_size_node.space != 'RENDER_SIZE':
-        scale_size_node.space = 'RENDER_SIZE'
-    scale_size_node.frame_method = 'FIT'
-
-    scale_legend_node.inputs[1].default_value = scale_x
-    scale_legend_node.inputs[2].default_value = scale_y
+    set_compositor_scale(scale_size_node, mode='Render Size', frame_method='Fit')
+    set_compositor_scale(scale_legend_node, x=scale_x, y=scale_y)
 
     bpy.context.view_layer.update()
 
@@ -110,7 +112,7 @@ def set_legend_visibility(context, visible: bool):
     - If nodes exist, toggle the Alpha Over node mute state to hide/show the overlay.
     """
     scene = context.scene
-    tree = scene.node_tree
+    tree = get_scene_compositor_tree(scene)
 
     if not tree:
         if visible:

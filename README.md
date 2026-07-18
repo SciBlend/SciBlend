@@ -8,7 +8,6 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/SciBlend/SciBlend/build-extension.yml?branch=main)](https://github.com/SciBlend/SciBlend/actions)
 [![Linux x64](https://img.shields.io/badge/download-linux--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-linux_x64.zip)
 [![Windows x64](https://img.shields.io/badge/download-windows--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-windows_x64.zip)
-[![macOS x64](https://img.shields.io/badge/download-macos--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-macos_x64.zip)
 [![macOS ARM64](https://img.shields.io/badge/download-macos--arm64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-macos_arm64.zip)
 
 <picture>
@@ -69,7 +68,7 @@ After enabling, open View3D > Sidebar > SciBlend.
 
 ## ⚙️ Requirements
 
-- Blender 4.5.1 LTS+
+- Blender 5.1+
 
 ## 🔄 Workflow Overview
 

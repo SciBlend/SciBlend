@@ -20,10 +20,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Fetch platform wheels
         run: |
@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p wheels
-          for d in wheels/linux-x64 wheels/windows-x64 wheels/macos-x64 wheels/macos-arm64 wheels/common; do
+          for d in wheels/linux-x64 wheels/windows-x64 wheels/macos-arm64 wheels/common; do
             if [ -d "$d" ]; then
               shopt -s nullglob
               mv -f "$d"/*.whl wheels/ || true
@@ -44,11 +44,11 @@ jobs:
           done
           ls -lh wheels || true
 
-      - name: Download Blender 4.5.1
+      - name: Download Blender 5.2
         run: |
           set -euo pipefail
-          BLENDER_VERSION=4.5.1
-          BASE_URL=https://download.blender.org/release/Blender4.5
+          BLENDER_VERSION=5.2.0
+          BASE_URL=https://download.blender.org/release/Blender5.2
           FILE=blender-${BLENDER_VERSION}-linux-x64.tar.xz
           curl -L -o "$RUNNER_TEMP/$FILE" "$BASE_URL/$FILE"
           tar -C "$RUNNER_TEMP" -xf "$RUNNER_TEMP/$FILE"
@@ -79,14 +79,6 @@ jobs:
         with:
           name: sciblend-windows-x64
           path: dist/*windows*.zip
-          compression-level: 0
-          if-no-files-found: ignore
-
-      - name: Upload artifact (macos-x64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: sciblend-macos-x64
-          path: dist/*macos_x64*.zip
           compression-level: 0
           if-no-files-found: ignore
 

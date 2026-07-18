@@ -1,5 +1,7 @@
 import bpy
 
+from ...compat import set_compositor_scale
+
 
 def create_or_update_shape_group(group_name: str, image_filepath: str, as_sequence: bool = False, sequence_duration: int | None = None) -> bpy.types.NodeTree:
     """Create or update a compositor node group for a shape overlay.
@@ -54,29 +56,31 @@ def create_or_update_shape_group(group_name: str, image_filepath: str, as_sequen
     except Exception:
         pass
 
-    n_scale_render.space = 'RENDER_SIZE'
-    n_scale_render.frame_method = 'CROP'
-
-    n_scale_rel.space = 'RELATIVE'
+    set_compositor_scale(n_scale_render, mode='Render Size', frame_method='Crop')
+    set_compositor_scale(n_scale_rel, mode='Relative')
 
     nodegroup.links.new(n_image.outputs.get('Image'), n_transform.inputs.get('Image'))
     nodegroup.links.new(n_transform.outputs.get('Image'), n_scale_render.inputs.get('Image'))
     nodegroup.links.new(n_scale_render.outputs.get('Image'), n_scale_rel.inputs.get('Image'))
     nodegroup.links.new(n_scale_rel.outputs.get('Image'), group_out.inputs.get('Image'))
 
-    nodegroup.links.new(group_in.outputs.get("Translate X"), n_transform.inputs[1])
-    nodegroup.links.new(group_in.outputs.get("Translate Y"), n_transform.inputs[2])
-    nodegroup.links.new(group_in.outputs.get("Angle"), n_transform.inputs[3])
-    if 'X' in n_scale_render.inputs and 'Y' in n_scale_render.inputs:
-        nodegroup.links.new(group_in.outputs.get("Scale Size X"), n_scale_render.inputs['X'])
-        nodegroup.links.new(group_in.outputs.get("Scale Size Y"), n_scale_render.inputs['Y'])
-    elif 'Scale' in n_scale_render.inputs:
-        nodegroup.links.new(group_in.outputs.get("Scale Size X"), n_scale_render.inputs['Scale'])
-    if 'X' in n_scale_rel.inputs and 'Y' in n_scale_rel.inputs:
-        nodegroup.links.new(group_in.outputs.get("Scale X"), n_scale_rel.inputs['X'])
-        nodegroup.links.new(group_in.outputs.get("Scale Y"), n_scale_rel.inputs['Y'])
-    elif 'Scale' in n_scale_rel.inputs:
-        nodegroup.links.new(group_in.outputs.get("Scale X"), n_scale_rel.inputs['Scale'])
+    nodegroup.links.new(group_in.outputs.get("Translate X"), n_transform.inputs.get('X') or n_transform.inputs[1])
+    nodegroup.links.new(group_in.outputs.get("Translate Y"), n_transform.inputs.get('Y') or n_transform.inputs[2])
+    nodegroup.links.new(group_in.outputs.get("Angle"), n_transform.inputs.get('Angle') or n_transform.inputs[3])
+    ssx_in = n_scale_render.inputs.get('X')
+    ssy_in = n_scale_render.inputs.get('Y')
+    if ssx_in is not None and ssy_in is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale Size X"), ssx_in)
+        nodegroup.links.new(group_in.outputs.get("Scale Size Y"), ssy_in)
+    elif n_scale_render.inputs.get('Scale') is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale Size X"), n_scale_render.inputs.get('Scale'))
+    sx_in = n_scale_rel.inputs.get('X')
+    sy_in = n_scale_rel.inputs.get('Y')
+    if sx_in is not None and sy_in is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale X"), sx_in)
+        nodegroup.links.new(group_in.outputs.get("Scale Y"), sy_in)
+    elif n_scale_rel.inputs.get('Scale') is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale X"), n_scale_rel.inputs.get('Scale'))
 
     group_in.location = (-600, 0)
     n_image.location = (-400, 0)

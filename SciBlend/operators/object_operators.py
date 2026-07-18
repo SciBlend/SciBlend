@@ -1,6 +1,8 @@
 import bpy
 import math
 
+from ..compat import eevee_engine_id, iter_action_fcurves
+
 class CreateNullOperator(bpy.types.Operator):
     bl_idname = "import_x3d.create_null"
     bl_label = "Create Null"
@@ -90,8 +92,7 @@ class CreateSceneOperator(bpy.types.Operator):
         world.use_nodes = False
         world.color = (0, 0, 0)
 
-        bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
-        bpy.context.scene.use_nodes = True
+        bpy.context.scene.render.engine = eevee_engine_id()
 
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
@@ -292,8 +293,10 @@ class OrganizeGeometryInCollectionsOperator(bpy.types.Operator):
                 driver.driver.expression = 'visibility'
 
         for empty in empties:
-            if empty.animation_data and empty.animation_data.action:
-                for fcurve in empty.animation_data.action.fcurves:
+            adt = empty.animation_data
+            if adt and adt.action:
+                slot = getattr(adt, "action_slot", None)
+                for fcurve in iter_action_fcurves(adt.action, slot):
                     for kf in fcurve.keyframe_points:
                         kf.interpolation = 'CONSTANT'
 

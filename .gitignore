@@ -1,2 +1,6 @@
 wheels/
 dist/
+*.pyc
+migration-report/*
+bamk*
+AGENTS.md

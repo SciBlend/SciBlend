@@ -1,10 +1,12 @@
 import bpy
 
+from ...compat import get_scene_compositor_tree, set_compositor_scale
+
 
 def update_legend_position_in_compositor(context):
     scene = context.scene
     settings = scene.legend_settings
-    tree = scene.node_tree
+    tree = get_scene_compositor_tree(scene)
     
     if tree is None:
         return
@@ -28,7 +30,7 @@ def update_legend_position_in_compositor(context):
 def update_legend_scale_in_compositor(context):
     scene = context.scene
     settings = scene.legend_settings
-    tree = scene.node_tree
+    tree = get_scene_compositor_tree(scene)
     
     if tree is None:
         return
@@ -42,15 +44,12 @@ def update_legend_scale_in_compositor(context):
     if scale_node is None:
         return
 
-    scale_node.space = 'RELATIVE' if settings.legend_scale_mode == 'SCENE' else 'RENDER_SIZE'
-
+    mode = 'Relative' if settings.legend_scale_mode == 'SCENE' else 'Render Size'
     if settings.legend_scale_linked:
         scale_value = settings.legend_scale_x
-        scale_node.inputs['X'].default_value = scale_value
-        scale_node.inputs['Y'].default_value = scale_value
+        set_compositor_scale(scale_node, mode=mode, x=scale_value, y=scale_value)
     else:
-        scale_node.inputs['X'].default_value = settings.legend_scale_x
-        scale_node.inputs['Y'].default_value = settings.legend_scale_y
+        set_compositor_scale(scale_node, mode=mode, x=settings.legend_scale_x, y=settings.legend_scale_y)
 
     bpy.context.view_layer.update()
 

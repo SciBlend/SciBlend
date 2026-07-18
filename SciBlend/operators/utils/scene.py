@@ -1,6 +1,8 @@
 import bpy
 from typing import Iterable
 
+from ...compat import iter_action_fcurves
+
 
 def clear_scene(context: bpy.types.Context) -> None:
 	"""Delete all objects in the current scene and purge orphan data blocks."""
@@ -72,10 +74,12 @@ def keyframe_visibility_single_frame(obj: bpy.types.Object, frame: int) -> None:
 
 def enforce_constant_interpolation(obj: bpy.types.Object) -> None:
 	"""Force all keyframes on the object's action to use CONSTANT interpolation."""
-	if obj.animation_data and obj.animation_data.action:
-		for fcurve in obj.animation_data.action.fcurves:
+	adt = obj.animation_data
+	if adt and adt.action:
+		slot = getattr(adt, "action_slot", None)
+		for fcurve in iter_action_fcurves(adt.action, slot):
 			for kf in fcurve.keyframe_points:
-				kf.interpolation = 'CONSTANT' 
+				kf.interpolation = 'CONSTANT'
 
 
 def get_import_target_collection(context: bpy.types.Context, create_new: bool, base_name: str) -> bpy.types.Collection:

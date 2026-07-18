@@ -93,10 +93,7 @@ class ImportX3DOperator(bpy.types.Operator, ImportHelper):
         bpy.context.scene.frame_current = 1
 
         for obj in bpy.data.objects:
-            if obj.animation_data and obj.animation_data.action:
-                for fcurve in obj.animation_data.action.fcurves:
-                    for kf in fcurve.keyframe_points:
-                        kf.interpolation = 'CONSTANT'
+            enforce_constant_interpolation(obj)
         return {'FINISHED'}
 
 

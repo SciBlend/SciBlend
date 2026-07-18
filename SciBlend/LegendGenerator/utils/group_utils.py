@@ -1,6 +1,8 @@
 import bpy
 from typing import Optional
 
+from ...compat import set_compositor_scale
+
 
 GROUP_NAME = "SciBlend_LegendGroup"
 
@@ -57,20 +59,24 @@ def create_or_update_legend_group(image_filepath: str) -> bpy.types.NodeTree:
     except Exception:
         pass
 
-    n_scale_render.space = 'RENDER_SIZE'
-    n_scale_render.frame_method = 'FIT'
-
-    n_scale_rel.space = 'RELATIVE'
+    set_compositor_scale(n_scale_render, mode='Render Size', frame_method='Fit')
+    set_compositor_scale(n_scale_rel, mode='Relative')
 
     nodegroup.links.new(n_image.outputs.get('Image'), n_translate.inputs.get('Image'))
     nodegroup.links.new(n_translate.outputs.get('Image'), n_scale_render.inputs.get('Image'))
     nodegroup.links.new(n_scale_render.outputs.get('Image'), n_scale_rel.inputs.get('Image'))
     nodegroup.links.new(n_scale_rel.outputs.get('Image'), group_out.inputs.get('Image'))
 
-    nodegroup.links.new(group_in.outputs.get("Translate X"), n_translate.inputs[1])
-    nodegroup.links.new(group_in.outputs.get("Translate Y"), n_translate.inputs[2])
-    nodegroup.links.new(group_in.outputs.get("Scale X"), n_scale_rel.inputs[1])
-    nodegroup.links.new(group_in.outputs.get("Scale Y"), n_scale_rel.inputs[2])
+    tx_out = group_in.outputs.get("Translate X")
+    ty_out = group_in.outputs.get("Translate Y")
+    nodegroup.links.new(tx_out, n_translate.inputs.get('X') or n_translate.inputs[1])
+    nodegroup.links.new(ty_out, n_translate.inputs.get('Y') or n_translate.inputs[2])
+    sx_in = n_scale_rel.inputs.get('X')
+    sy_in = n_scale_rel.inputs.get('Y')
+    if sx_in is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale X"), sx_in)
+    if sy_in is not None:
+        nodegroup.links.new(group_in.outputs.get("Scale Y"), sy_in)
 
     group_in.location = (-600, 0)
     n_image.location = (-400, 0)

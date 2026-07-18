@@ -2,6 +2,8 @@ import bpy
 from bpy.props import IntProperty, PointerProperty, CollectionProperty, StringProperty, BoolProperty
 from bpy.types import PropertyGroup, UIList, Operator
 
+from ...compat import clear_action_fcurves
+
 class CameraListItem(PropertyGroup):
     name: StringProperty()
 
@@ -154,7 +156,8 @@ class CAMERA_OT_erase_all_keyframes(Operator):
                     self.report({'INFO'}, f"Reset camera range for {obj.name}")
                 
                 if obj.animation_data and obj.animation_data.action:
-                    obj.animation_data.action.fcurves.clear()
+                    clear_action_fcurves(obj.animation_data.action,
+                                         getattr(obj.animation_data, "action_slot", None))
                     self.report({'INFO'}, f"Removed all keyframes for {obj.name}")
 
         self.report({'INFO'}, f"Processed {camera_count} cameras")

@@ -7,6 +7,7 @@ import tempfile
 import uuid
 import re
 from ..utils.group_utils import create_or_update_shape_group
+from ...compat import get_scene_compositor_tree, get_compositor_output_node, alpha_over_sockets
 
 
 def _build_unique_png_path(base_name: str, context: bpy.types.Context | None = None) -> str:
@@ -70,14 +71,10 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
         scene = context.scene
         print("Starting SHAPESGENERATOR_OT_UpdateShapes")
         
-        if not scene.use_nodes:
-            scene.use_nodes = True
-        tree = scene.node_tree
+        tree = get_scene_compositor_tree(scene, create=True)
         print(f"Node tree obtained: {tree}")
 
-        composite = tree.nodes.get("Composite")
-        if not composite:
-            composite = tree.nodes.new(type='CompositorNodeComposite')
+        composite, composite_input = get_compositor_output_node(tree, create=True)
         print(f"Composite Node: {composite}")
 
         legend_alpha_over = tree.nodes.get("Alpha Over")
@@ -93,12 +90,12 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
         render_layers.location = (base_x, row_y)
 
         if legend_alpha_over:
-            target_socket = legend_alpha_over.inputs[1]
-            if target_socket.links:
+            target_socket = alpha_over_sockets(legend_alpha_over)[0]
+            if target_socket and target_socket.links:
                 tree.links.remove(target_socket.links[0])
         else:
-            target_socket = composite.inputs['Image']
-            if target_socket.links:
+            target_socket = composite_input
+            if target_socket and target_socket.links:
                 tree.links.remove(target_socket.links[0])
 
         for node in [n for n in tree.nodes if n.name.startswith("ShapesGenerator_AlphaOver_") or n.name.startswith("ShapesGenerator_Group_")]:
@@ -275,10 +272,15 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
             for i, g in enumerate(group_nodes):
                 ao = tree.nodes.new(type='CompositorNodeAlphaOver')
                 ao.name = f"ShapesGenerator_AlphaOver_{i}"
-                ao.inputs[0].default_value = 1.0
+                ao_bg, ao_fg, ao_fac = alpha_over_sockets(ao)
+                if ao_fac is not None:
+                    try:
+                        ao_fac.default_value = 1.0
+                    except Exception:
+                        pass
                 ao.location = (base_x + (i + 1.5) * spacing_x, row_y)
-                tree.links.new(base_socket, ao.inputs[1])
-                tree.links.new(g.outputs['Image'], ao.inputs[2])
+                tree.links.new(base_socket, ao_bg)
+                tree.links.new(g.outputs['Image'], ao_fg)
                 base_socket = ao.outputs[0]
                 ao_nodes.append(ao)
 
@@ -297,8 +299,9 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
 
         context.scene.update_tag()
 
-        if context.scene.node_tree:
-            context.scene.node_tree.update_tag()
+        _tree = get_scene_compositor_tree(context.scene)
+        if _tree:
+            _tree.update_tag()
 
         current_frame = context.scene.frame_current
         context.scene.frame_set(current_frame)
@@ -329,8 +332,10 @@ class SHAPESGENERATOR_OT_UpdateShapes(Operator):
                             context.view_layer.update()
                             region.tag_redraw()
 
-        for node in context.scene.node_tree.nodes:
-            node.update()
+        _tree = get_scene_compositor_tree(context.scene)
+        if _tree:
+            for node in _tree.nodes:
+                node.update()
 
 class SHAPESGENERATOR_OT_NewShape(Operator):
     bl_idname = "shapesgenerator.new_shape"
@@ -369,9 +374,7 @@ class SHAPESGENERATOR_OT_AnimatedGraphs(Operator):
         if not shapes:
             return {'CANCELLED'}
 
-        if not scene.use_nodes:
-            scene.use_nodes = True
-        tree = scene.node_tree
+        tree = get_scene_compositor_tree(scene, create=True)
 
         try:
             if bool(getattr(scene, 'use_preview_range', False)):

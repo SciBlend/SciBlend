@@ -245,14 +245,14 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 						b = vtk_cell.GetPointId(s + 1)
 						c = vtk_cell.GetPointId(s + 2)
 						if s % 2 == 0:
-							self._process_face(volume_data, new_cell, [a, b, c])
+							self._process_face(volume_data, new_cell, [a, b, c], is_surface=True)
 						else:
-							self._process_face(volume_data, new_cell, [b, a, c])
+							self._process_face(volume_data, new_cell, [b, a, c], is_surface=True)
 				else:
 					num_pts = vtk_cell.GetNumberOfPoints()
 					if num_pts >= 3:
 						original_indices = [vtk_cell.GetPointId(j) for j in range(num_pts)]
-						self._process_face(volume_data, new_cell, original_indices)
+						self._process_face(volume_data, new_cell, original_indices, is_surface=True)
 			else:
 				continue
 		
@@ -315,11 +315,21 @@ class ImportVTKAnimationOperator(Operator, ImportHelper):
 		edges = [[a, b] for (a, b) in sorted(edges_pairs)]
 		return volume_data, point_data, edges
 
-	def _process_face(self, volume_data: VolumeMeshData, current_cell: VolumeCell, original_indices):
-		"""Create or link a face for the current cell, using a canonical key to share faces between neighbouring cells."""
+	def _process_face(self, volume_data: VolumeMeshData, current_cell: VolumeCell, original_indices, is_surface: bool = False):
+		"""Create or link a face for the current cell.
+
+		For volume cells a canonical key is used to share faces between adjacent
+		cells so that interior faces (shared by two cells) can later be culled and
+		only the boundary skin is kept. Surface cells (2D polygons read straight
+		from POLYDATA) must never be culled: duplicated/coincident polygons are
+		de-duplicated but kept as boundary faces so the geometry is not dropped.
+		"""
 		face_key = tuple(sorted(original_indices))
 		if face_key in volume_data.face_map:
 			existing_face = volume_data.face_map[face_key]
+			if is_surface:
+				current_cell.faces.append(existing_face)
+				return
 			existing_face.neighbour = current_cell
 			current_cell.faces.append(existing_face)
 		else:
