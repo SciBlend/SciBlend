@@ -6,9 +6,9 @@
 
 
 [![Build](https://img.shields.io/github/actions/workflow/status/SciBlend/SciBlend/build-extension.yml?branch=main)](https://github.com/SciBlend/SciBlend/actions)
-[![Linux x64](https://img.shields.io/badge/download-linux--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-linux_x64.zip)
-[![Windows x64](https://img.shields.io/badge/download-windows--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-windows_x64.zip)
-[![macOS ARM64](https://img.shields.io/badge/download-macos--arm64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.1.2/sciblend-1.1.2-macos_arm64.zip)
+[![Linux x64](https://img.shields.io/badge/download-linux--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.3.0/sciblend-linux-x64.zip)
+[![Windows x64](https://img.shields.io/badge/download-windows--x64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.3.0/sciblend-windows-x64.zip)
+[![macOS ARM64](https://img.shields.io/badge/download-macos--arm64-blue)](https://github.com/SciBlend/SciBlend/releases/download/v.1.3.0/sciblend-macos-arm64.zip)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./images/sciblend-favicon.png">
