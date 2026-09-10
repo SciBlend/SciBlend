@@ -16,6 +16,7 @@ def _signature(item):
             bool(getattr(item, 'auto_range', False)),
             float(getattr(item, 'from_min', 0.0)),
             float(getattr(item, 'from_max', 1.0)),
+            float(getattr(item, 'empty_value', 0.0)),
             float(getattr(item, 'alpha_baseline', 0.0)),
             float(getattr(item, 'alpha_multiplier', 0.0)),
             float(getattr(item, 'opacity_unit_distance', 1.0)),
@@ -134,6 +135,13 @@ class VolumeItem(PropertyGroup):
         update=lambda self, ctx: _on_volume_item_update(self, ctx)
     )
     
+    empty_value: FloatProperty(
+        name="Empty Value",
+        description="Value of the inactive voxels of the grid. Voxels sitting at this value stay "
+                    "transparent when Clip Min is on, even if the mapped range starts below it",
+        default=0.0,
+    )
+
     density_scale: FloatProperty(
         name="Density Scale",
         default=50.0,

@@ -4,6 +4,7 @@ import os
 
 
 _RANGE_CACHE = {}
+_BACKGROUND_CACHE = {}
 _LAST_RANGE_ERROR = ""
 
 
@@ -143,36 +144,25 @@ def _ensure_slice_cube_material():
     principled_bsdf.distribution = 'MULTI_GGX'
     principled_bsdf.subsurface_method = 'RANDOM_WALK'
     
-    principled_bsdf.inputs[0].default_value = (0.800000011920929, 0.800000011920929, 0.800000011920929, 1.0)
-    principled_bsdf.inputs[1].default_value = 0.0
-    principled_bsdf.inputs[2].default_value = 0.5
-    principled_bsdf.inputs[3].default_value = 1.5
-    principled_bsdf.inputs[4].default_value = 0.0
-    principled_bsdf.inputs[5].default_value = (0.0, 0.0, 0.0)
-    principled_bsdf.inputs[7].default_value = 0.0
-    principled_bsdf.inputs[8].default_value = 0.0
-    principled_bsdf.inputs[9].default_value = (1.0, 0.20000000298023224, 0.10000000149011612)
-    principled_bsdf.inputs[10].default_value = 0.05000000074505806
-    principled_bsdf.inputs[12].default_value = 0.0
-    principled_bsdf.inputs[13].default_value = 0.5
-    principled_bsdf.inputs[14].default_value = (1.0, 1.0, 1.0, 1.0)
-    principled_bsdf.inputs[15].default_value = 0.0
-    principled_bsdf.inputs[16].default_value = 0.0
-    principled_bsdf.inputs[17].default_value = (0.0, 0.0, 0.0)
-    principled_bsdf.inputs[18].default_value = 0.0
-    principled_bsdf.inputs[19].default_value = 0.0
-    principled_bsdf.inputs[20].default_value = 0.029999999329447746
-    principled_bsdf.inputs[21].default_value = 1.5
-    principled_bsdf.inputs[22].default_value = (1.0, 1.0, 1.0, 1.0)
-    principled_bsdf.inputs[23].default_value = (0.0, 0.0, 0.0)
-    principled_bsdf.inputs[24].default_value = 0.0
-    principled_bsdf.inputs[25].default_value = 0.5
-    principled_bsdf.inputs[26].default_value = (1.0, 1.0, 1.0, 1.0)
-    principled_bsdf.inputs[27].default_value = (1.0, 1.0, 1.0, 1.0)
-    principled_bsdf.inputs[28].default_value = 0.0
-    principled_bsdf.inputs[29].default_value = 0.0
-    principled_bsdf.inputs[30].default_value = 1.3300000429153442
-    
+
+    for socket_name, value in (
+        ("Base Color", (0.8, 0.8, 0.8, 1.0)),
+        ("Metallic", 0.0),
+        ("Roughness", 0.5),
+        ("IOR", 1.5),
+        ("Alpha", 0.0),
+        ("Emission Color", (1.0, 1.0, 1.0, 1.0)),
+        ("Emission Strength", 0.0),
+    ):
+        socket = principled_bsdf.inputs.get(socket_name)
+        if socket is None:
+            continue
+        try:
+            socket.default_value = value
+        except (TypeError, ValueError):
+            print(f"SliceCube material: could not set '{socket_name}' on this Blender version")
+
+
     material_output = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
     material_output.name = "Material Output"
     material_output.is_active_output = True
@@ -472,6 +462,98 @@ def _compute_vdb_grid_min_max(filepath: str, grid_name: str, component_mode: str
         return None
 
 
+def _compute_vdb_grid_background(filepath: str, grid_name: str, component_mode: str = 'MAG'):
+    """
+    Read the background (inactive voxel) value of a grid.
+
+    Voxels outside the data live at this value, so it is what has to be culled to
+    keep empty space transparent when the mapped range does not start at it.
+    """
+    if not filepath or not grid_name or not os.path.exists(filepath):
+        return None
+    key = (filepath, grid_name, component_mode)
+    if key in _BACKGROUND_CACHE:
+        return _BACKGROUND_CACHE[key]
+    try:
+        import openvdb as vdb
+        grid = vdb.read(filepath, grid_name)
+        bg = getattr(grid, 'background', None)
+        if bg is None:
+            return None
+        if isinstance(bg, (list, tuple)):
+            if component_mode == 'X':
+                value = float(bg[0])
+            elif component_mode == 'Y':
+                value = float(bg[1])
+            elif component_mode == 'Z':
+                value = float(bg[2])
+            else:
+                value = sum(float(c) * float(c) for c in bg) ** 0.5
+        else:
+            value = float(bg)
+    except Exception:
+        return None
+    _BACKGROUND_CACHE[key] = value
+    return value
+
+
+def _refresh_empty_value(context, item):
+    """Store the grid background value on the item so the shader can cull empty space."""
+    try:
+        fp = _resolve_vdb_filepath_for_frame(context, item)
+        vo = getattr(item, 'volume_object', None)
+        if not fp and vo and vo.data and hasattr(vo.data, 'filepath'):
+            fp = bpy.path.abspath(vo.data.filepath)
+        bg = _compute_vdb_grid_background(fp, item.grid_name, getattr(item, 'component_mode', 'MAG'))
+        if bg is not None:
+            item.empty_value = bg
+    except Exception as e:
+        print(f"Could not read grid background value: {e}")
+
+
+def _material_is_outdated(mat) -> bool:
+    """True when the material predates the current density controller layout."""
+    try:
+        density_ctrl = next(
+            (n for n in mat.node_tree.nodes
+             if n.type == 'GROUP' and n.node_tree and n.node_tree.name == 'SciBlend_Volume_Density'),
+            None,
+        )
+        return density_ctrl is None or 'Raw Value' not in density_ctrl.inputs
+    except Exception:
+        return True
+
+
+def _apply_empty_cull(nt, density_ctrl, item, raw_socket):
+    """
+    Feed the raw (un-normalized) value into the density controller and set the
+    tolerance that decides which voxels count as empty.
+
+    A negative tolerance disables the cull, which is what we want when the lower
+    clip is off or when no raw value could be wired up.
+    """
+    if 'Raw Value' not in density_ctrl.inputs:
+        return
+    try:
+        for link in list(density_ctrl.inputs['Raw Value'].links):
+            nt.links.remove(link)
+        if raw_socket is not None:
+            nt.links.new(raw_socket, density_ctrl.inputs['Raw Value'])
+        density_ctrl.inputs['Empty Value'].default_value = float(getattr(item, 'empty_value', 0.0))
+        if raw_socket is None or not item.clip_min:
+            if raw_socket is None and item.clip_min:
+                print("WARNING: no raw value socket to cull empty space with; "
+                      "the volume will stay opaque wherever the mapped range covers "
+                      "the grid background. Regenerate the material.")
+            tolerance = -1.0
+        else:
+            span = abs(float(item.from_max) - float(item.from_min))
+            tolerance = max(span * 1e-5, 1e-12)
+        density_ctrl.inputs['Empty Tolerance'].default_value = tolerance
+    except Exception as e:
+        print(f"Error configuring empty-space cull: {e}")
+
+
 def ensure_volume_material_for_object(context, obj, item):
     """
     Create or update a volume material for a specific object using settings from a VolumeItem.
@@ -499,6 +581,9 @@ def ensure_volume_material_for_object(context, obj, item):
 
     mapr = nt.nodes.new('ShaderNodeMapRange'); mapr.location = (-400, 0)
 
+
+    if getattr(item, 'grid_name', ''):
+        _refresh_empty_value(context, item)
 
     try:
         if getattr(item, 'auto_range', False) and getattr(item, 'grid_name', ''):
@@ -580,6 +665,8 @@ def ensure_volume_material_for_object(context, obj, item):
     if src_for_map is not None:
         nt.links.new(src_for_map, mapr.inputs[0])
 
+    _apply_empty_cull(nt, density_ctrl, item, src_for_map)
+
     nt.links.new(mapr.outputs[0], density_ctrl.inputs['Normalized Value'])
     nt.links.new(mapr.outputs[0], cr.inputs[0])
     nt.links.new(cr.outputs[0], pv.inputs[0])
@@ -630,6 +717,8 @@ def update_volume_item_material(context, item):
     volume_item._UPDATING_NODES = True
     
     try:
+        _refresh_empty_value(context, item)
+
         try:
             if getattr(item, 'auto_range', False) and getattr(item, 'grid_name', ''):
                 fp = _resolve_vdb_filepath_for_frame(context, item)
@@ -648,11 +737,11 @@ def update_volume_item_material(context, item):
         
         mat_name = f"SciBlend_Volume_{item.volume_object.name}"
         mat = bpy.data.materials.get(mat_name)
-        
-        if not mat or not mat.use_nodes:
+
+        if not mat or not mat.use_nodes or _material_is_outdated(mat):
             mat = ensure_volume_material_for_object(context, item.volume_object, item)
             return mat
-        
+
         nt = mat.node_tree
         
         attr = next((n for n in nt.nodes if n.type == 'ATTRIBUTE'), None)
@@ -664,9 +753,12 @@ def update_volume_item_material(context, item):
             mapr.inputs[1].default_value = item.from_min
             mapr.inputs[2].default_value = item.from_max
         
-        sep_xyz = next((n for n in nt.nodes if n.type == 'SEPARATE_XYZ'), None)
-        vec_len = next((n for n in nt.nodes if n.type == 'VECT_MATH' and getattr(n, 'operation', '') == 'LENGTH'), None)
-        
+    
+        sep_xyz = next((n for n in nt.nodes if n.bl_idname == 'ShaderNodeSeparateXYZ'), None)
+        vec_len = next((n for n in nt.nodes if n.bl_idname == 'ShaderNodeVectorMath'
+                        and getattr(n, 'operation', '') == 'LENGTH'), None)
+
+        src_for_map = None
         if mapr and attr and sep_xyz and vec_len:
             try:
                 for link in list(mapr.inputs[0].links):
@@ -728,10 +820,11 @@ def update_volume_item_material(context, item):
                     density_ctrl.inputs['Step Size'].default_value = item.step_size
             except Exception as e:
                 print(f"Error updating density controller: {e}")
+            _apply_empty_cull(nt, density_ctrl, item, src_for_map)
         else:
             print("WARNING: Density controller node not found. Material may need to be regenerated.")
         
-        pv = next((n for n in nt.nodes if n.type == 'VOLUME_PRINCIPLED'), None)
+        pv = next((n for n in nt.nodes if n.bl_idname == 'ShaderNodeVolumePrincipled'), None)
         if pv:
             pv.inputs[4].default_value = item.anisotropy
             pv.inputs[6].default_value = item.emission_strength
@@ -864,6 +957,7 @@ class FILTERS_OT_volume_compute_range(bpy.types.Operator):
                 return {'CANCELLED'}
             
             item.from_min, item.from_max = rng
+            _refresh_empty_value(context, item)
             self.report({'INFO'}, f"Range computed: [{item.from_min:.6e}, {item.from_max:.6e}]")
         except Exception as e:
             self.report({'ERROR'}, f"Error computing range: {e}")

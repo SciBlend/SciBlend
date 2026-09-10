@@ -11,41 +11,49 @@ def _create_socket(interface, name, io_type, sock_type, defaults=None):
     return sock
 
 
+MASK_GROUP_INPUTS = ("Raw Value", "Empty Value", "Empty Tolerance")
+
+
 def _build_threshold_masking_graph():
     """Construct node group that masks values at 0 and 1 extremes based on flags."""
     group_name = "SciBlend_Threshold_Mask"
     existing = bpy.data.node_groups.get(group_name)
     if existing:
-        return existing
-    
+        if all(name in existing.interface.items_tree for name in MASK_GROUP_INPUTS):
+            return existing
+        bpy.data.node_groups.remove(existing)
+
     ng = bpy.data.node_groups.new(type='ShaderNodeTree', name=group_name)
     iface = ng.interface
-    
+
     _create_socket(iface, "Normalized", "INPUT", 'NodeSocketFloat')
     _create_socket(iface, "Mask Lower Bound", "INPUT", 'NodeSocketBool', {'default_value': True})
     _create_socket(iface, "Mask Upper Bound", "INPUT", 'NodeSocketBool', {'default_value': False})
+    _create_socket(iface, "Raw Value", "INPUT", 'NodeSocketFloat')
+    _create_socket(iface, "Empty Value", "INPUT", 'NodeSocketFloat', {'default_value': 0.0})
+    _create_socket(iface, "Empty Tolerance", "INPUT", 'NodeSocketFloat', {'default_value': -1.0})
     _create_socket(iface, "Result", "OUTPUT", 'NodeSocketFloat')
-    
+
     nodes = ng.nodes
     links = ng.links
-    
+
     input_node = nodes.new("NodeGroupInput")
     output_node = nodes.new("NodeGroupOutput")
     input_node.location = (-400, 0)
-    output_node.location = (800, 0)
+    output_node.location = (1000, 0)
 
     negate_lower = nodes.new("ShaderNodeMath")
     negate_lower.operation = "SUBTRACT"
-    negate_lower.inputs[0].default_value = 1.0
+    negate_lower.inputs[1].default_value = 1.0
     negate_lower.location = (-200, 120)
-    links.new(input_node.outputs["Mask Lower Bound"], negate_lower.inputs[1])
-    
+    links.new(input_node.outputs["Mask Lower Bound"], negate_lower.inputs[0])
+
     compare_lower = nodes.new("ShaderNodeMath")
     compare_lower.operation = "GREATER_THAN"
     compare_lower.location = (0, 120)
     links.new(input_node.outputs["Normalized"], compare_lower.inputs[0])
     links.new(negate_lower.outputs[0], compare_lower.inputs[1])
-    
+
 
     invert_upper_flag = nodes.new("ShaderNodeMath")
     invert_upper_flag.operation = "LESS_THAN"
@@ -70,8 +78,31 @@ def _build_threshold_masking_graph():
     combine_masks.location = (500, 0)
     links.new(compare_lower.outputs[0], combine_masks.inputs[0])
     links.new(compare_upper.outputs[0], combine_masks.inputs[1])
-    
-    links.new(combine_masks.outputs[0], output_node.inputs["Result"])
+
+    empty_delta = nodes.new("ShaderNodeMath")
+    empty_delta.operation = "SUBTRACT"
+    empty_delta.location = (0, -400)
+    links.new(input_node.outputs["Raw Value"], empty_delta.inputs[0])
+    links.new(input_node.outputs["Empty Value"], empty_delta.inputs[1])
+
+    empty_distance = nodes.new("ShaderNodeMath")
+    empty_distance.operation = "ABSOLUTE"
+    empty_distance.location = (200, -400)
+    links.new(empty_delta.outputs[0], empty_distance.inputs[0])
+
+    not_empty = nodes.new("ShaderNodeMath")
+    not_empty.operation = "GREATER_THAN"
+    not_empty.location = (400, -400)
+    links.new(empty_distance.outputs[0], not_empty.inputs[0])
+    links.new(input_node.outputs["Empty Tolerance"], not_empty.inputs[1])
+
+    apply_empty_mask = nodes.new("ShaderNodeMath")
+    apply_empty_mask.operation = "MULTIPLY"
+    apply_empty_mask.location = (700, 0)
+    links.new(combine_masks.outputs[0], apply_empty_mask.inputs[0])
+    links.new(not_empty.outputs[0], apply_empty_mask.inputs[1])
+
+    links.new(apply_empty_mask.outputs[0], output_node.inputs["Result"])
     return ng
 
 
@@ -80,7 +111,7 @@ def _build_density_controller_graph():
     group_name = "SciBlend_Volume_Density"
     existing = bpy.data.node_groups.get(group_name)
     if existing:
-        required_inputs = ['Opacity Unit Distance', 'Step Size']
+        required_inputs = ['Opacity Unit Distance', 'Step Size'] + list(MASK_GROUP_INPUTS)
         has_new_inputs = all(inp in existing.interface.items_tree for inp in required_inputs)
         if has_new_inputs:
             return existing
@@ -101,7 +132,10 @@ def _build_density_controller_graph():
                    {'default_value': 1.0, 'min_value': 0.0, 'max_value': 100.0})
     _create_socket(iface, "Step Size", "INPUT", 'NodeSocketFloat',
                    {'default_value': 0.05, 'min_value': 0.001, 'max_value': 1000.0})
-    
+    _create_socket(iface, "Raw Value", "INPUT", 'NodeSocketFloat')
+    _create_socket(iface, "Empty Value", "INPUT", 'NodeSocketFloat', {'default_value': 0.0})
+    _create_socket(iface, "Empty Tolerance", "INPUT", 'NodeSocketFloat', {'default_value': -1.0})
+
     _create_socket(iface, "Density", "OUTPUT", 'NodeSocketFloat')
     
     nodes = ng.nodes
@@ -138,6 +172,9 @@ def _build_density_controller_graph():
     links.new(input_node.outputs["Normalized Value"], mask_group.inputs["Normalized"])
     links.new(input_node.outputs["Enable Lower Clip"], mask_group.inputs["Mask Lower Bound"])
     links.new(input_node.outputs["Enable Upper Clip"], mask_group.inputs["Mask Upper Bound"])
+    links.new(input_node.outputs["Raw Value"], mask_group.inputs["Raw Value"])
+    links.new(input_node.outputs["Empty Value"], mask_group.inputs["Empty Value"])
+    links.new(input_node.outputs["Empty Tolerance"], mask_group.inputs["Empty Tolerance"])
     
     final_multiply = nodes.new("ShaderNodeMath")
     final_multiply.operation = "MULTIPLY"

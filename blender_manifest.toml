@@ -85,6 +85,8 @@ paths_exclude_pattern = [
   "/.git/",
   "*.zip",
   "/dist/",
+  "/data/",
+  "/docs/",
   "/.github/",
   "/constraints/",
   "/scripts/",
